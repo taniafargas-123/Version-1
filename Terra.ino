@@ -25,5 +25,11 @@ void loop() {
    if (Pausa == ('0')){
       mySerial.println('0');
    }
+   if (Pausa == ('2')){
+      mySerial.println('2'); //Cambia el modo de media de temperatura para el satelite
+   }
+   if (Pausa == ('3')){
+      mySerial.println('3');//Cambia el modo de media de temperatura para tierra
+   }
    }
 }
