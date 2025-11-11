@@ -1,12 +1,14 @@
 import serial
 import threading
 import matplotlib.pyplot as plt
+import time
+import numpy as np
 from tkinter import *
 from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # --- CONFIGURACIÓN SERIAL ---
-device = 'COM6'
+device = 'COM3'
 mySerial = serial.Serial(device, 9600, timeout=1)
 
 # --- VARIABLES GLOBALES ---
@@ -17,6 +19,7 @@ humedades = []
 eje_x = []
 i = 0
 modo_actual = "Temperatura"  # Puede ser "Temperatura" o "Humedad"
+modo_Media_temperatura = 0
 
 # --- FUNCIONES DE CONTROL SERIAL ---
 def Parar():
@@ -41,6 +44,8 @@ def IniciarComunicacion():
 
 def IniciarComunicacion2():
     global i ,ventana_abierta
+    suma = 0
+    Temperatura_media = 0
     while ventana_abierta:
         if running and mySerial.in_waiting > 0:
             try:
@@ -55,29 +60,33 @@ def IniciarComunicacion2():
                 eje_x.append(i)
                 temperaturas.append(temperatura)
                 humedades.append(humedad)
+                if modo_Media_temperatura == 0:
+                    if (i>9):
+                        suma=suma+temperaturas[i]-temperaturas[(i-10)]
+                        Temperatura_media = (suma)/10
+                        print(Temperatura_media)
+                    elif (i<=9):
+                        suma=suma+temperaturas[i]
+                        Temperatura_media = (suma)/10
+                        print(Temperatura_media)
+                if modo_Media_temperatura == 1:
+                    Temperatura_media = float(trozos[5])
+                    print(Temperatura_media)
                 i += 1
-        
-                actualizar_grafica()
+                actualizar_grafica(i)
             except Exception as e:
                 print("Error:", e)
-        else:
+        if not running:
             try:
-                linea = mySerial.readline().decode('utf-8').strip()
-                if ':' not in linea:
-                    continue
-                trozos = linea.split(':')
-                temperatura = float(trozos[1])
-                humedad = float(trozos[3])
-                print(linea)
-
                 eje_x.append(i)
-                temperaturas.append()
-                humedades.append()
+                temperaturas.append(np.nan)
+                humedades.append(np.nan)
                 i += 1
         
-                actualizar_grafica()
+                actualizar_grafica(i)
             except Exception as e:
                 print("Error:", e)
+        
 # --- FUNCIÓN PARA CAMBIAR DE GRÁFICA ---
 def cambiar_modo():
     global modo_actual
@@ -88,15 +97,30 @@ def cambiar_modo():
         modo_actual = "Temperatura"
         cambiarButton.config(text="Mostrar Humedad")
     actualizar_grafica()
+    
+# --- FUNCIÓN PARA CAMBIAR MEDIA TEMPERATURA
+def cambiar_modomedia():
+    global modo_Media_temperatura
+    if modo_Media_temperatura == 0:
+        modo_Media_temperatura = 1
+        cambiarmediaButton.config(text="Media Tierra")
+        mySerial.write(b'2')
+    else:
+        modo_Media_temperatura = 0
+        cambiarmediaButton.config(text="Media Sat")
+        mySerial.write(b'3')
 
 # --- FUNCIÓN PARA ACTUALIZAR LA GRÁFICA ---
-def actualizar_grafica():
+def actualizar_grafica(x):
     ax.clear()
     if modo_actual == "Temperatura":
+        ax.set(xlim=(x-10,x+10),ylim=(20,50))
         ax.plot(eje_x, temperaturas, color='red', label='Temperatura (°C)')
         ax.set_ylabel('Temperatura (°C)')
         ax.set_title('Gráfica de Temperatura')
+        
     else:
+        ax.set(xlim=(x-10,x+10),ylim=(0,100))
         ax.plot(eje_x, humedades, color='blue', label='Humedad (%)')
         ax.set_ylabel('Humedad (%)')
         ax.set_title('Gráfica de Humedad')
@@ -142,12 +166,12 @@ frame_botones = Frame(window, bg="lightpink", bd=2)
 frame_botones.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
 # Configurar filas y columnas del frame de botones
-for r in range(4):
+for r in range(5):
     frame_botones.rowconfigure(r, weight=1)
 frame_botones.columnconfigure(0, weight=1)
 
 # --- Botones ---
-boton_style = {"font": ("Arial", 12), "width": 15, "height": 2}
+boton_style = {"font": ("Arial", 11), "width": 15, "height": 2}
 
 IniciarButton = Button(frame_botones, text="Iniciar", bg='thistle', fg="black", command=IniciarComunicacion, **boton_style)
 IniciarButton.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
@@ -160,6 +184,9 @@ ReanudarButton.grid(row=2, column=0, padx=10, pady=5, sticky="nsew")
 
 cambiarButton = Button(frame_botones, text="Mostrar Humedad", bg='lightgreen', fg="black", command=cambiar_modo, **boton_style)
 cambiarButton.grid(row=3, column=0, padx=10, pady=5, sticky="nsew")
+
+cambiarmediaButton = Button(frame_botones, text="Media Sat", bg='lightyellow', fg="black", command=cambiar_modomedia, **boton_style)
+cambiarmediaButton.grid(row=4, column=0, padx=10, pady=5, sticky="nsew")
 
 # --- Frame para la gráfica ---
 frame_grafica = LabelFrame(window, bg="white", bd=2, text="Gráfica en tiempo real", font=("Arial", 11))
@@ -175,4 +202,3 @@ canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 window.protocol("WM_DELETE_WINDOW", cerrar_programa)
 
 window.mainloop()
-
