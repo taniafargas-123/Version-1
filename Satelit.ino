@@ -1,18 +1,22 @@
 #include <SoftwareSerial.h>
 #include <DHT.h>
-#define DHTPIN 2
-#define DHTTYPE DHT11
 #include <Servo.h>
 
-Servo servoMotor; 
+#define DHTPIN 2
+#define DHTTYPE DHT11
+#define trigPin 4
+#define echoPin 5
+#define servoPin 6
+#define joyX A0
 
 DHT dht(DHTPIN, DHTTYPE);
+SoftwareSerial mySerial(10, 11); 
+Servo servoMotor; 
+
 String input = "";
 
 long nextMillis1;
-long nextMillis2;
 const long interval1 = 3000;
-const long interval2 = 5000;
 
 int Pausa2 = 0;
 int modo_Media_temperatura =0;
@@ -20,39 +24,30 @@ float suma =0;
 float m =0;
 int i =0;
 
-const int trigPin = 4;
-const int echoPin = 5;
-float duration;
-float distance;
+float duration=0;
+float distance=0;
 
-int aut = 1;
-int valX = 0;
-int joyX = A0;      
+bool aut = true;
+int valX = 0;    
 float velMotor = 0;
-
 int angulo=90;
-int pinBoton = 3;  
-bool botonAnterior = HIGH;  // para detectar cambios
+
 int sentido = 0;   // 0 = izquierda, 1 = derecha
 
-SoftwareSerial mySerial(10, 11); // RX, TX 
 
 void setup() {
-   nextMillis1 = millis() + interval1;
-   nextMillis2 = millis() + interval2;
    Serial.begin(9600);
    mySerial.begin(9600);
-   mySerial.println("Empezamos");
    dht.begin();
-   servoMotor.attach(6); // Servo conectado al pin 6
-   servoMotor.write(angulo); // Posición inicial
    pinMode(trigPin, OUTPUT);
-   pinMode(pinBoton, INPUT_PULLUP);
    pinMode(echoPin, INPUT);
-
+   servoMotor.attach(servoPin);
+   mySerial.println("Empezamos");
+   servoMotor.write(angulo); // Posición inicial
+   nextMillis1 = millis() + interval1;
 }
-void loop() {
 
+void loop() {
   if (Pausa2 == 0 && (millis() >= nextMillis1)){
       float h = dht.readHumidity();
       float t = dht.readTemperature();
@@ -64,7 +59,7 @@ void loop() {
       mySerial.print(":3:");
       mySerial.print(distance);
       mySerial.print(":4:");
-      mySerial.print(angulo);
+      mySerial.println(angulo);
       temperaturas[i]=t;
       if (modo_Media_temperatura == 1){
          if (i>9){
@@ -80,7 +75,7 @@ void loop() {
             mySerial.println(m);
          }
       }
-      i=i+1;
+      i++;
       nextMillis1 = millis() + interval1;
   }
    // ---- MODO MANUAL ----
@@ -114,18 +109,16 @@ void loop() {
    delayMicroseconds(10);
    digitalWrite(trigPin, LOW);
 
-   duration = pulseIn(echoPin, HIGH, 30000); // 30ms timeout
+   duration = pulseIn(echoPin, HIGH, 3000000); // 30ms timeout
 
-   if (duration == 0) {
-      Serial.println("Sin lectura válida");
-   } else {
-      distance = duration * 0.0343 / 2;
+   if (duration!=0) {
+      distance = duration * 0.0343 / 2.000;
       Serial.print("Distancia: ");
       Serial.print(distance);
       Serial.println(" cm");
-}
+   }
 
-servoMotor.write(angulo);
+   servoMotor.write(angulo);
 
    if (mySerial.available()) {
       input = Serial.readStringUntil('\n'); // Lee hasta el fin del mensaje
