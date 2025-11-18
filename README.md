@@ -26,7 +26,7 @@ La comunicació entre satèl·lit i terra utilitza **LoRa** per transmissions de
 - Enviament de dades de temperatura i humitat.  
 - Processament bàsic i alarmes inicials a l’estació de terra.
 
-Link del video demostratiu: 
+Link del video demostratiu: https://www.canva.com/design/DAG2FDCh28I/qZcI6gRfyIkjfftYRJZoaw/watch?utm_content=DAG2FDCh28I&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hf39c88deff 
 
 ### **Versió 2**  
 - Afegit sensor d’ultrasons i servomotor orientable.  
