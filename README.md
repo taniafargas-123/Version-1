@@ -23,23 +23,20 @@ La comunicació entre satèl·lit i terra utilitza **LoRa** per transmissions de
 ##  Versions del Sistema  
 
 ### **Versió 1**  
-- Enviament de dades de temperatura i humitat.  
-- Processament bàsic i alarmes inicials a l’estació de terra.
+En aquesta primera versió, el satèl·lit captura dades de temperatura i humitat amb precisió i les envia a terra. A l’estació de terra, aquestes dades cobren vida en forma de gràfics i lectures clares, mentre detecta patrons i llança alertes quan el sistema identifica situacions compromeses.
 
 Link del video demostratiu: https://www.canva.com/design/DAG2FDCh28I/qZcI6gRfyIkjfftYRJZoaw/watch?utm_content=DAG2FDCh28I&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hf39c88deff 
 
 ### **Versió 2**  
-- Afegit sensor d’ultrasons i servomotor orientable.  
-- Gràfiques informatives i capacitat d’enviar ordres des de terra.
+En aquesta versió, el satèl·lit amplia la seva percepció incorporant un sensor d’ultrasons capaç de detectar objectes propers que podrien posar-lo en risc. Tota aquesta informació —juntament amb la de la versió anterior— arriba a terra amb precisió i es transforma en gràfics clars que potencien la presa de decisions. Ara, l’operador també pot interactuar amb el satèl·lit enviant ordres que modifiquen tasques, ajusten freqüències o orienten el sensor d’ultrasons mitjançant un servo-motor.
 
 Link del video demostratiu: https://drive.google.com/file/d/1L44LO0Di6GdR4LK3FuMZSn6tWgFo8nDT/view?usp=sharing 
 
 ### **Versió 3**  
-- Obtenció de la posició orbital del satèl·lit.  
-- Visualització en mapa, guardat i recuperació de dades des de la interfície.  
+El satèl·lit adquireix una capacitat clau: determinar i comunicar la seva posició exacta en òrbita. Aquesta informació s’uneix a la resta de dades i s’envia a terra, on l’usuari pot visualitzar la trajectòria sobre mapes intuïtius i gestionar-ho tot des d’una interfície gràfica potent i fàcil d’utilitzar. A més, la plataforma emmagatzema i recupera dades sempre que calgui, convertint el sistema en una eina útil per monitorar i entendre el comportament del satèl·lit.
 
 ---
 
-## ✨ Objectiu Final  
+##  Objectiu Final  
 Construir un **ecosistema satel·lital didàctic i funcional** que combini electrònica, comunicació, programació i visualització de dades. Una experiència completa de “terra a òrbita”.
 
