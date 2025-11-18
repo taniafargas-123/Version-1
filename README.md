@@ -1,6 +1,6 @@
 # Benvinguts al nostre Sistema Satel·lital!!!
 ### *Projecte del Grup 12 — Antoni Ruiz · Marc Conill · Tània Fargas*
-
+*foto
 Aquest projecte és el nostre viatge a l’espai: creem el prototip funcional d’un sistema satel·lital, format per un satèl·lit i una estació de terra que cooperen per captar, enviar i visualitzar dades en temps real.
 
 ---
