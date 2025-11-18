@@ -68,7 +68,7 @@ void loop() {
       if (sentido == 0) angulo -= 2;
       else angulo += 2;
    }
-   // ---- LECTURA ----
+   // ---- LECTURA/ENVIO ----
    if (Serial.available()){
    char Pausa = Serial.read();
    if (Pausa == ('1')){
