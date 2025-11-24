@@ -1,0 +1,77 @@
+#include <SoftwareSerial.h>
+#define aAmarilla 2
+#define aRoja 6
+#define aVerde 4
+SoftwareSerial mySerial(10, 11); // RX, TX (azul, naranja)
+
+float temp = 0;
+float hum = 0;
+float dist = 0;
+bool aDHT = 0;
+bool aCerca = 0;
+bool aTiempo = 0;
+int nextFalloTiempo;
+int intervalFalloTiempo = 5000;
+
+void setup() {
+  Serial.begin(9600);
+  mySerial.begin(9600);
+  pinMode(aAmarilla, OUTPUT);
+  pinMode(aRoja, OUTPUT);
+  pinMode(aVerde, OUTPUT);
+}
+
+void loop() {
+  if (mySerial.available()) {
+    nextFalloTiempo = intervalFalloTiempo + millis();
+    aTiempo = 0;
+    String linea = mySerial.readStringUntil('\n');  // Leer una línea completa
+    Serial.println(linea);
+
+    char buffer[80];
+    linea.toCharArray(buffer, 80);
+
+    // Separar por ":"
+    char *token = strtok(buffer, ":");
+
+    while (token != NULL) {
+      int id = atoi(token);         // ID (1,2,3,4,5,6)
+
+      token = strtok(NULL, ":");    // Valor
+      if (token == NULL) break;
+
+      float valor = atof(token);
+
+      // Asignación según ID
+      switch (id) {
+        case 1: temp = valor; break;
+        case 2: hum  = valor; break;
+        case 3: dist = valor; break;
+        case 4: aDHT = valor; break;
+        case 5: aCerca = valor; break;
+      }
+      token = strtok(NULL, ":");  // Siguiente ID
+    }
+    Serial.println(aDHT);
+    Serial.println(aCerca);
+  }else{
+    if(nextFalloTiempo > millis()){
+      aTiempo = 1; 
+    }
+  }
+  if (aTiempo = 0){
+    digitalWrite(aAmarilla, HIGH);
+  } else if(aTiempo = 1) {
+    digitalWrite(aAmarilla, LOW);
+  }
+  if (aDHT = 0){
+    digitalWrite(aRoja, HIGH);
+  } else if(aDHT = 1) {
+    digitalWrite(aRoja, LOW);
+  }
+  if (aCerca = 0){
+    digitalWrite(aVerde, HIGH);
+  } else if(aCerca = 1) {
+    digitalWrite(aVerde, LOW);
+  }
+}
