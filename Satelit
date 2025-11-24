@@ -1,0 +1,129 @@
+#include <SoftwareSerial.h>
+#include <DHT.h>
+
+#define DHTPIN 2
+#define DHTTYPE DHT11
+#define trigPin 4
+#define echoPin 5
+
+float t, h;
+unsigned long nextMillis1;
+unsigned long nextImpresion;
+unsigned long nextTimeoutHT;
+
+int intervaloImpresion = 2000;
+int interval1 = 5000;
+
+float duration;
+float distance;
+
+bool esperandoTimeout = true;
+bool fallo_TyH = 0;
+bool fallo_tiempo = 0;
+bool fallo_cerca = 0;
+
+float leerDistancia() {
+  long duracion;
+  float distancia;
+  // Intentos
+  for (int intento = 0; intento < 3; intento++) {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(3);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    duracion = pulseIn(echoPin, HIGH, 30000); // 30 ms
+    if (duracion > 0) {
+      distancia = duracion * 0.0343 / 2.0;
+      // filtrar basura
+      if (distancia > 2 && distancia < 400) {
+        return distancia;
+      }
+    }
+    delay(20); // Pequeño descanso
+    return distancia;
+  }
+  return -1; // todas fallaron
+}
+int q = 0;
+
+DHT dht(DHTPIN, DHTTYPE);
+SoftwareSerial mySerial(10, 11);
+
+void setup() {
+  Serial.begin(9600);
+  mySerial.begin(9600);
+  
+  dht.begin();
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  Serial.println("Empezamos");
+
+  nextMillis1 = millis() + interval1;
+  nextImpresion = millis() + intervaloImpresion;
+
+  pinMode(3, OUTPUT);
+}
+
+void loop() {
+  
+  // ---- DHT ----
+  if (millis() >= nextMillis1) {
+
+    h = dht.readHumidity();
+    t = dht.readTemperature();
+
+    if (isnan(h) || isnan(t)) {
+        esperandoTimeout = true;
+    } else {
+      esperandoTimeout = false;
+      fallo_TyH = 0; // Se recuperó
+      nextTimeoutHT = millis() + 5000;
+    }
+    nextMillis1 = millis() + interval1;
+  }
+
+  if (esperandoTimeout && (millis() >= nextTimeoutHT)) {
+    fallo_TyH = 1; // Aquí sí se activa la alarma
+  }
+
+  // ---- SENSOR ULTRASONICO ----
+  distance = leerDistancia();
+  if (distance == -1) {
+    Serial.println("Lectura ultrasónica inválida");
+    fallo_cerca = 0; // No marcar error de cercanía
+  } else if (distance < 10) {
+    fallo_cerca = 1;
+  } else {
+    fallo_cerca = 0;
+  }
+  // ---- IMPRIMIR ----
+  if (millis() >= nextImpresion) {
+    Serial.print("-------------"); Serial.print(q); Serial.println("-------------");
+    Serial.print("Temperatura: ");
+    Serial.println(t);
+
+    Serial.print("Humedad: ");
+    Serial.println(h);
+
+    Serial.print("Distancia: ");
+    Serial.println(distance);
+
+    Serial.print("Fallo DHT:");
+    Serial.println(fallo_TyH);
+
+    Serial.print("Fallo cercanía:");
+    Serial.println(fallo_cerca);
+
+  
+    // ---- COMUNICACION ----
+    mySerial.print("1:"); mySerial.print(t);
+    mySerial.print(":2:"); mySerial.print(h);
+    mySerial.print(":3:"); mySerial.print(distance);
+    mySerial.print(":4:"); mySerial.print(fallo_TyH);
+    mySerial.print(":5:"); mySerial.println(fallo_cerca);
+    q++;
+    nextImpresion = millis() + intervaloImpresion;
+  }
+}
