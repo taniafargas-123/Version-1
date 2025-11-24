@@ -1,0 +1,334 @@
+#include <SoftwareSerial.h>
+#include <DHT.h>
+#include <Servo.h>
+
+// -------------------- DHT SENSOR --------------------
+#define DHTPIN 2
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+// -------------------- SERVO -------------------------
+Servo servoMotor; 
+int angulo = 90;
+
+// -------------------- TIMERS ------------------------
+long nextMillis1;
+long nextMillis2;
+const long interval1 = 3000;
+const long interval2 = 5000;
+unsigned long nextImpresion;
+unsigned long nextTimeoutHT;
+int intervaloImpresion = 2000;
+
+// -------------------- ORBIT CONSTANTS ----------------
+const double G = 6.67430e-11;
+const double M = 5.97219e24;
+const double R_EARTH = 6371000;
+const double ALTITUDE = 400000;
+const double EARTH_ROTATION_RATE = 7.2921159e-5;
+const unsigned long MILLIS_BETWEEN_UPDATES = 1000;
+const double TIME_COMPRESSION = 90.0;
+
+unsigned long nextUpdate;
+double real_orbital_period;
+double r;
+
+double orbX = 0;
+double orbY = 0;
+double orbZ = 0;
+
+// -------------------- DATA SENDING -------------------
+int Pausa2 = 0;
+int modo_Media_temperatura = 0;
+float suma = 0;
+float m = 0;
+int i = 0;
+
+// -------------------- ULTRASONIC ---------------------
+const int trigPin = 4;
+const int echoPin = 5;
+float duration;
+float distance;
+
+// -------------------- JOYSTICK + SERVO ---------------
+int aut = 1;
+int valX = 0;
+int joyX = A0;
+float velMotor = 0;
+int pinBoton = 3;
+bool botonAnterior = HIGH;
+int sentido = 0;
+//nose
+float t, h;
+
+//Errores
+bool esperandoTimeout = true;
+bool fallo_TyH = 0;
+bool fallo_tiempo = 0;
+bool fallo_cerca = 0;
+// -------------------- SERIAL -------------------------
+String input = "";
+SoftwareSerial mySerial(10, 11); // RX, TX
+// Before Setup
+void enviar_datos_completos(float t, float h, float distance, int angulo, float m, double x, double y, double z,float fallo_TyH,float fallo_cerca) {
+    mySerial.print("1:"); mySerial.print(t);
+    mySerial.print(":2:"); mySerial.print(h);
+    mySerial.print(":3:"); mySerial.print(distance);
+    mySerial.print(":4:"); mySerial.print(angulo);
+    mySerial.print(":5:"); mySerial.print(m);
+    mySerial.print(":6:"); mySerial.print(x);
+    mySerial.print(":7:"); mySerial.print(y);
+    mySerial.print(":8:"); mySerial.println(z);   // end in newline
+    mySerial.print(":9:"); mySerial.print(fallo_TyH);
+    mySerial.print(":10:"); mySerial.println(fallo_cerca);
+}
+float leerDistancia() {
+  long duracion;
+  float distancia;
+  // Intentos
+  for (int intento = 0; intento < 3; intento++) {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(3);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    duracion = pulseIn(echoPin, HIGH, 30000); // 30 ms
+    if (duracion > 0) {
+      distancia = duracion * 0.0343 / 2.0;
+      // filtrar basura
+      if (distancia > 2 && distancia < 400) {
+        return distancia;
+      }
+    }
+    delay(20); // Pequeño descanso
+    return distancia;
+  }
+  return -1; // todas fallaron
+}
+int q = 0;
+// ======================================================
+//                        SETUP
+// ======================================================
+void setup() {
+    Serial.begin(9600);
+    mySerial.begin(9600);
+    mySerial.println("Empezamos");
+
+    // timers
+    nextMillis1 = millis() + interval1;
+    nextMillis2 = millis() + interval2;
+    nextImpresion = millis() + intervaloImpresion;
+
+    // DHT
+    dht.begin();
+
+    // Servo
+    servoMotor.attach(6);
+    servoMotor.write(angulo);
+
+    // Ultrasonic
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
+
+    // Joystick button
+    pinMode(pinBoton, INPUT_PULLUP);
+    pinMode(3, OUTPUT);
+
+    // Orbit simulation setup
+    r = R_EARTH + ALTITUDE;
+    real_orbital_period = 2 * PI * sqrt(pow(r, 3) / (G * M));
+    nextUpdate = MILLIS_BETWEEN_UPDATES;
+}
+
+// ======================================================
+//                         LOOP
+// ======================================================
+void loop() {
+
+    // --------------------------------------------------
+    //  SENSOR + DATA SENDING  every interval1
+    // --------------------------------------------------
+    if (Pausa2 == 0 && millis() >= nextMillis1) {
+
+        float h = dht.readHumidity();
+        float t = dht.readTemperature();
+
+        float temperaturas[100];
+        if (isnan(h) || isnan(t)) {
+            esperandoTimeout = true;
+        } else {
+            esperandoTimeout = false;
+            fallo_TyH = 0; // Se recuperó
+            nextTimeoutHT = millis() + 5000;
+            temperaturas[i] = t;
+
+            // media móvil 10 valores
+            if (modo_Media_temperatura == 1) {
+
+                if (i > 9) {
+                    suma = suma + temperaturas[i] - temperaturas[(i - 9)];
+                    m = suma / 10.0;
+                } 
+                else {
+                    suma += temperaturas[i];
+                    m = suma / 10.0;
+            }
+        }
+
+        i++;
+        }
+        nextMillis1 = millis() + interval1;
+    }
+    if (esperandoTimeout && (millis() >= nextTimeoutHT)) {
+    fallo_TyH = 1; // Aquí sí se activa la alarma
+    }
+
+    // --------------------------------------------------
+    //      ORBIT SIMULATION UPDATE
+    // --------------------------------------------------
+    unsigned long currentTime = millis();
+    if (currentTime > nextUpdate) {
+        simulate_orbit(currentTime, 0, 0);
+        nextUpdate = currentTime + MILLIS_BETWEEN_UPDATES;
+    }
+
+    // --------------------------------------------------
+    //                SERVO MANUAL MODE
+    // --------------------------------------------------
+    if (!aut) {
+        valX = analogRead(joyX);
+        velMotor = abs(((valX - 500) / 500.00) * 4.00);
+
+        if (valX < 490 && angulo < 180) angulo += velMotor;
+        else if (valX > 510 && angulo > 0) angulo -= velMotor;
+
+        angulo = constrain(angulo, 0, 180);
+    }
+
+    // --------------------------------------------------
+    //                SERVO AUTOMATIC MODE
+    // --------------------------------------------------
+    else {
+        if (angulo >= 180) sentido = 0;
+        if (angulo <= 0) sentido = 1;
+
+        if (sentido == 0) angulo -= 2;
+        else angulo += 2;
+    }
+
+    // ---- SENSOR ULTRASONICO ----
+  distance = leerDistancia();
+  if (distance == -1) {
+    Serial.println("Lectura ultrasónica inválida");
+    fallo_cerca = 0; // No marcar error de cercanía
+  } else if (distance < 10) {
+    fallo_cerca = 1;
+  } else {
+    fallo_cerca = 0;
+  }
+
+    servoMotor.write(angulo);
+     // ---- IMPRIMIR ----
+  if (millis() >= nextImpresion) {
+    Serial.print("-------------"); Serial.print(q); Serial.println("-------------");
+    Serial.print("Temperatura: ");
+    Serial.println(t);
+
+    Serial.print("Humedad: ");
+    Serial.println(h);
+
+    Serial.print("Distancia: ");
+    Serial.println(distance);
+
+    Serial.print("Fallo DHT:");
+    Serial.println(fallo_TyH);
+
+    Serial.print("Fallo cercanía:");
+    Serial.println(fallo_cerca);
+    // ---- COMUNICACION ----
+        enviar_datos_completos(t, h, distance, angulo, m, orbX, orbY, orbZ,fallo_TyH,fallo_cerca);
+        q++;
+    nextImpresion = millis() + intervaloImpresion;
+    }
+
+
+    // --------------------------------------------------
+    //                SERIAL COMMANDS
+    // --------------------------------------------------
+    if (mySerial.available()) {
+
+        input = Serial.readStringUntil('\n');
+        input.trim();
+
+        int firstColon = input.indexOf(':');
+        int comando = (firstColon != -1)
+                        ? input.substring(0, firstColon).toInt()
+                        : input.toInt();
+
+        switch (comando) {
+            
+            case 0:
+                Pausa2 = 0;
+                Serial.println("Reanudar");
+                break;
+
+            case 1:
+                Pausa2 = 1;
+                Serial.println("Parar");
+                break;
+
+            case 2:
+                modo_Media_temperatura = 1;
+                Serial.println("Satelite");
+                break;
+
+            case 3:
+                modo_Media_temperatura = 0;
+                Serial.println("Tierra");
+                break;
+
+            case 4:
+                aut = 1;
+                Serial.println("Modo auto");
+                break;
+
+            case 5:
+                aut = 0;
+                Serial.println("Modo manual");
+                break;
+
+            case 6:
+                angulo = input.substring(firstColon + 1).toInt();
+                Serial.print("Ángulo recibido: ");
+                Serial.println(angulo);
+                break;
+
+            default:
+                Serial.print("Comando no reconocido: ");
+                Serial.println(input);
+                break;
+        }
+    }
+}
+
+// ======================================================
+//                  ORBIT SIMULATION FUNC
+// ======================================================
+void simulate_orbit(unsigned long millis, double inclination, int ecef) {
+
+    double time = (millis / 1000) * TIME_COMPRESSION;
+    double angle = 2 * PI * (time / real_orbital_period);
+
+    orbX = r * cos(angle);
+    orbY = r * sin(angle) * cos(inclination);
+    orbZ = r * sin(angle) * sin(inclination);
+
+    if (ecef) {
+        double theta = EARTH_ROTATION_RATE * time;
+        double x_ecef = orbX * cos(theta) - orbY * sin(theta);
+        double y_ecef = orbX * sin(theta) + orbY * cos(theta);
+        orbX = x_ecef;
+        orbY = y_ecef;
+    }
+}
+
