@@ -69,7 +69,7 @@ bool fallo_cerca = 0;
 // -------------------- SERIAL -------------------------
 String input = "";
 SoftwareSerial mySerial(10, 11); // RX, TX
-// Before Setup
+// Before Setup Se crea una funcion para enviar todos los datos de una
 void enviar_datos_completos(float t, float h, float distance, int angulo, float m, double x, double y, double z,float fallo_TyH,float fallo_cerca) {
     mySerial.print("1:"); mySerial.print(t);
     mySerial.print(":2:"); mySerial.print(h);
@@ -82,7 +82,7 @@ void enviar_datos_completos(float t, float h, float distance, int angulo, float 
     mySerial.print(":9:"); mySerial.print(fallo_TyH);
     mySerial.print(":10:"); mySerial.println(fallo_cerca);
 }
-float leerDistancia() {
+float leerDistancia() {//Funcion para leer la distancia
   long duracion;
   float distancia;
   // Intentos
@@ -154,7 +154,7 @@ void loop() {
         float t = dht.readTemperature();
 
         float temperaturas[100];
-        if (isnan(h) || isnan(t)) {
+        if (isnan(h) || isnan(t)) {//Si h o t da nan enviar error
             esperandoTimeout = true;
         } else {
             esperandoTimeout = false;
@@ -217,7 +217,7 @@ void loop() {
     }
 
     // ---- SENSOR ULTRASONICO ----
-  distance = leerDistancia();
+  distance = leerDistancia(); //Detetca si hay un error y si no envia distancia
   if (distance == -1) {
     Serial.println("Lectura ultrasónica inválida");
     fallo_cerca = 0; // No marcar error de cercanía
@@ -253,9 +253,9 @@ void loop() {
 
 
     // --------------------------------------------------
-    //                SERIAL COMMANDS
+    //                SERIAL COMMANDS                    //Detetca si le llega ninguna alerta deesde tierra
     // --------------------------------------------------
-    if (mySerial.available()) {
+    if (mySerial.available()) { 
 
         input = Serial.readStringUntil('\n');
         input.trim();
@@ -269,42 +269,42 @@ void loop() {
             
             case 0:
                 Pausa2 = 0;
-                Serial.println("Reanudar");
+                Serial.println("Reanudar"); //reanuda la transmision
                 break;
 
             case 1:
                 Pausa2 = 1;
-                Serial.println("Parar");
+                Serial.println("Parar"); // para la transmision
                 break;
 
             case 2:
-                modo_Media_temperatura = 1;
+                modo_Media_temperatura = 1; //Los datos de media de temperatura se leen desde el satelite
                 Serial.println("Satelite");
                 break;
 
             case 3:
-                modo_Media_temperatura = 0;
+                modo_Media_temperatura = 0; // Los datos de media de temperatura se leen desde tierra
                 Serial.println("Tierra");
                 break;
 
             case 4:
                 aut = 1;
-                Serial.println("Modo auto");
+                Serial.println("Modo auto"); //cambia a modo automatico el servo
                 break;
 
             case 5:
                 aut = 0;
-                Serial.println("Modo manual");
+                Serial.println("Modo manual"); //cambia a modo manual el servo
                 break;
 
             case 6:
-                angulo = input.substring(firstColon + 1).toInt();
+                angulo = input.substring(firstColon + 1).toInt(); //En teoria "Envia el angulo de tierra a el satelite"
                 Serial.print("Ángulo recibido: ");
                 Serial.println(angulo);
                 break;
 
             default:
-                Serial.print("Comando no reconocido: ");
+                Serial.print("Comando no reconocido: "); // Si lee una lectura rara aparece esto
                 Serial.println(input);
                 break;
         }
@@ -314,7 +314,7 @@ void loop() {
 // ======================================================
 //                  ORBIT SIMULATION FUNC
 // ======================================================
-void simulate_orbit(unsigned long millis, double inclination, int ecef) {
+void simulate_orbit(unsigned long millis, double inclination, int ecef) {//simula la orbita
 
     double time = (millis / 1000) * TIME_COMPRESSION;
     double angle = 2 * PI * (time / real_orbital_period);
