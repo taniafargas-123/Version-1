@@ -2,9 +2,9 @@
 #define aAmarilla 2
 #define aRoja 6
 #define aVerde 4
-SoftwareSerial mySerial(10, 11); // RX, TX
+SoftwareSerial mySerial(10, 11); // RX, TX 
 
-float temp = 0;
+float temp = 0; //Todas la variables que se envian de satelite a tierra
 float hum = 0;
 float dist = 0;
 float angulo = 90;
@@ -13,11 +13,11 @@ float x = 0;
 float y = 0;
 float z = 0;
 
-bool aDHT = 0;      // ID 9
-bool aCerca = 0;    // ID 10
+bool aDHT = 0;      // Variables de alarmas
+bool aCerca = 0; 
 bool aTiempo = 0;
 
-int nextFalloTiempo;
+int nextFalloTiempo; //Esperar para las alarmas
 int intervalFalloTiempo = 5000;
 
 void setup() {
@@ -35,27 +35,27 @@ void loop() {
   //--------------------------------------------------
   if (mySerial.available()) {
 
-    nextFalloTiempo = millis() + intervalFalloTiempo;
+    nextFalloTiempo = millis() + intervalFalloTiempo; // Si hay un fallo espera
     aTiempo = 0;
 
-    String linea = mySerial.readStringUntil('\n');
+    String linea = mySerial.readStringUntil('\n'); // Lee los mensajes que le envian
     Serial.println(linea);
 
-    char buffer[90];
+    char buffer[90];//No se que hace (preguntar a Marc)
     linea.toCharArray(buffer, 90);
 
-    char *token = strtok(buffer, ":");
+    char *token = strtok(buffer, ":"); //No se que hace (preguntar a Marc)
 
     while (token != NULL) {
 
-      int id = atoi(token);
+      int id = atoi(token);//No se que hace (preguntar a Marc)
       token = strtok(NULL, ":");
       if (token == NULL) break;
 
       float valor = atof(token);
 
       switch (id) {
-        case 1: temp = valor; break;
+        case 1: temp = valor; break;//No se que hace (preguntar a Marc)
         case 2: hum  = valor; break;
         case 3: dist = valor; break;
         case 4: angulo = valor; break;
@@ -73,12 +73,12 @@ void loop() {
   //--------------------------------------------------
   // TIMEOUT
   //--------------------------------------------------
-  if (millis() > nextFalloTiempo) {
+  if (millis() > nextFalloTiempo) { //avisa si hay un fallo en un periodo de tiempo
     aTiempo = 1;
   }
 
   //--------------------------------------------------
-  // LEDS (CORREGIDO: antes usabas "=" en vez de "==")
+  // LEDS
   //--------------------------------------------------
   digitalWrite(aAmarilla, aTiempo == 0 ? HIGH : LOW);
   digitalWrite(aRoja,     aDHT == 0    ? HIGH : LOW);
@@ -92,7 +92,7 @@ void loop() {
     char Pausa = Serial.read();
 
     // comandos normales
-    if (Pausa == '0') mySerial.println("0:");
+    if (Pausa == '0') mySerial.println("0:"); //comandos que se envian de python 
     if (Pausa == '1') mySerial.println("1:");
     if (Pausa == '2') mySerial.println("2:");
     if (Pausa == '3') mySerial.println("3:");
