@@ -71,18 +71,28 @@ bool fallo_cerca = 0;
 String input = "";
 SoftwareSerial mySerial(10, 11); // RX, TX
 // Before Setup Se crea una funcion para enviar todos los datos de una
-void enviar_datos_completos(float t, float h, float distance, int angulo, float m, double x, double y, double z,float fallo_TyH,float fallo_cerca) {
+
+void enviar_datos_completos(float t, float h, float distance, int angulo, float m,
+                            double x, double y, double z, float fallo_TyH, float fallo_cerca) {
     mySerial.print("1:"); mySerial.print(t);
     mySerial.print(":2:"); mySerial.print(h);
     mySerial.print(":3:"); mySerial.print(distance);
     mySerial.print(":4:"); mySerial.print(angulo);
-    mySerial.print(":5:"); mySerial.print(m);
+
+    // canvi aquí
+    if (modo_Media_temperatura == 1) {
+        mySerial.print(":5:"); mySerial.print(m);   // envia la mitjana calculada al satèl·lit
+    } else {
+        mySerial.print(":5:"); mySerial.print("NaN"); // envia NaN si la mitjana es calcula a terra
+    }
+
     mySerial.print(":6:"); mySerial.print(x);
     mySerial.print(":7:"); mySerial.print(y);
-    mySerial.print(":8:"); mySerial.println(z);   // end in newline
+    mySerial.print(":8:"); mySerial.println(z);
     mySerial.print(":9:"); mySerial.print(fallo_TyH);
     mySerial.print(":10:"); mySerial.println(fallo_cerca);
 }
+
 float leerDistancia() {//Funcion para leer la distancia
   long duracion;
   float distancia;
