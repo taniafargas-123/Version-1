@@ -14,7 +14,7 @@ import difflib
 import sys
 
 # --- SERIAL CONFIG ---
-device = 'COM3'
+device = 'COM5'
 try:
     mySerial = serial.Serial(device, 9600, timeout=1)
     print(f"Serial opened on {device}")
