@@ -90,6 +90,7 @@ void loop() {
   //--------------------------------------------------
   if (Serial.available()) {
     char Pausa = Serial.read();
+    Serial.println(Pausa);
 
     // comandos normales
     if (Pausa == '0') mySerial.println("0:"); //comandos que se envian de python 
@@ -118,7 +119,5 @@ void loop() {
     if (aCerca == 1) {
       mySerial.println("10:1");
     }
-
-    delay(500);
   }
 }
