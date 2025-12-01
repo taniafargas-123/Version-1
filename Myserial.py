@@ -171,14 +171,16 @@ def IniciarComunicacion2():
                         beam_polar.set_data([theta_rad, theta_rad], [0, dist])
 
                 # Temperature mean (if your device sends a mean in label '5' use it; otherwise compute rolling)
-                if not np.isnan(media_temp):
+                # Temperature mean
+                if not np.isnan(media_temp) and media_temp > 0:
+                # només acceptem mitjanes positives enviades pel satèl·lit
                     Temperatura_media = media_temp
                 else:
-                    # compute rolling mean of last 10 (if available)
-                    if len(temperaturas) >= 10:
-                        Temperatura_media = float(np.mean(temperaturas[-10:]))
-                    else:
-                        Temperatura_media = float(np.nanmean(temperaturas))
+                    # compute rolling mean de les últimes mostres reals
+                if len(temperaturas) >= 10:
+                    Temperatura_media = float(np.mean([t for t in temperaturas[-10:] if not np.isnan(t)]))
+                else:
+                    Temperatura_media = float(np.nanmean([t for t in temperaturas if not np.isnan(t)]))
 
                 temperaturas_medias.append(Temperatura_media)
 
@@ -471,3 +473,4 @@ window.protocol("WM_DELETE_WINDOW", cerrar_programa)
 
 # Start tkinter mainloop
 window.mainloop()
+
