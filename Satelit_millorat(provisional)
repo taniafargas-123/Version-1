@@ -40,6 +40,7 @@ double orbZ = 0;
 // -------------------- DATA SENDING -------------------
 int Pausa2 = 0;
 int modo_Media_temperatura = 0;
+float temperaturas[100];
 float suma = 0;
 float m = 0;
 int i = 0;
@@ -150,10 +151,9 @@ void loop() {
     // --------------------------------------------------
     if (Pausa2 == 0 && millis() >= nextMillis1) {
 
-        float h = dht.readHumidity();
-        float t = dht.readTemperature();
+        h = dht.readHumidity();
+        t = dht.readTemperature();
 
-        float temperaturas[100];
         if (isnan(h) || isnan(t)) {//Si h o t da nan enviar error
             esperandoTimeout = true;
         } else {
@@ -331,4 +331,3 @@ void simulate_orbit(unsigned long millis, double inclination, int ecef) {//simul
         orbY = y_ecef;
     }
 }
-
