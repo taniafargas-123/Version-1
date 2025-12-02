@@ -12,15 +12,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import re
 import difflib
 import sys
+import plotly.graph_objects as go
+from collections import deque
 
-# --- SERIAL CONFIG ---
+# --- CONFIGURACIÓN SERIAL ---
 device = 'COM5'
-try:
-    mySerial = serial.Serial(device, 9600, timeout=1)
-    print(f"Serial opened on {device}")
-except Exception as e:
-    mySerial = None
-    print(f"Warning: could not open serial {device}: {e}")
+mySerial = serial.Serial(device, 9600, timeout=1)
 
 # --- GLOBALS ---
 angles = np.linspace(0, np.pi, 181)     # radians, length 181 (0°..180°)
@@ -43,6 +40,13 @@ modo_Media_temperatura = 0
 
 # Small helpers / constants
 R_EARTH = 6371000  # meters
+ALTITUDE = 400000.0  # Altitud (metres)
+ORBIT_RADIUS = R_EARTH + ALTITUDE
+
+# Paràmetres del Dibuix
+MAX_POINTS = 500  # Nombre màxim de punts per dibuixar la trajectòria de l'òrbita
+scale_factor = ORBIT_RADIUS / 1.5 # Escala visual: centre el rang de la gràfica
+refresh_interval = 2 # Actualitza la gràfica cada 2 segons (ajusta si cal)
 regex_position = re.compile(r"Position: \(X: ([\d\.-]+) m, Y: ([\d\.-]+) m, Z: ([\d\.-]+) m\)")
 
 # --- GUI functions ---
@@ -51,6 +55,7 @@ def Parar():
     if mySerial:
         try:
             mySerial.write(b'1')
+            preparar_paquet('1')
         except Exception as e:
             print("Serial write error:", e)
     running = False
@@ -61,6 +66,7 @@ def Reanudar():
     if mySerial:
         try:
             mySerial.write(b'0')
+            preparar_paquet('0')
         except Exception as e:
             print("Serial write error:", e)
     running = True
@@ -107,94 +113,87 @@ def Enter_pressed(event=None):
 
 def IniciarComunicacion():
     global running
-    if not running:
-        running = True
-        threadRecepcion = threading.Thread(target=IniciarComunicacion2, daemon=True)
-        threadRecepcion.start()
-        print("Hilo de recepción iniciado")
+    running = True
+    threadRecepcion = threading.Thread(target=IniciarComunicacion2, daemon=True)
+    threadRecepcion.start()
 
 def IniciarComunicacion2():
-    global i, ventana_abierta, distancies, punt, linea, temperatures_medias
-    suma = 0.0
-    Temperatura_media = 0.0
-
-    def safe_float(s, default=np.nan):
-        try:
-            return float(s)
-        except Exception:
-            return default
-
+    global i, ventana_abierta, distancies, punt, linea
+    suma = 0
+    Temperatura_media = 0
     while ventana_abierta:
-        if running and mySerial is not None and mySerial.in_waiting > 0:
+        if running and mySerial.in_waiting > 0:
             try:
-                linea = mySerial.readline().decode('utf-8', errors='ignore').strip()
-                if not linea:
+                linea = mySerial.readline().decode('utf-8').strip()
+                if ':' not in linea:
                     continue
-                # Debug: show raw incoming line (remove/comment out when stable)
-                print("RAW >", linea)
+                trozos = linea.split(':')
+                print(linea)
+                temperatura = float(trozos[1])
+                humedad = float(trozos[3])
+                dist = float(trozos[5])
+                ang = float(trozos[7])
+                posiciónx = float(trozos[11])
+                posicióny = float(trozos[13])
+                posiciónz =float(trozos[15])
 
-                # Build a label->value dict from colon-separated tokens:
-                # Example line: 1:21.5:2:55.3:3:78.2:4:120:5:20.1:6:1234567.88:7:-940282.22:8:402001.55
-                tokens = linea.split(':')
-                fields = {}
-                # iterate pairs (label, value)
-                for k in range(0, len(tokens) - 1, 2):
-                    label = tokens[k].strip()
-                    val = tokens[k+1].strip()
-                    if label != '':
-                        fields[label] = val
-
-                # Extract variables by label (use safe defaults)
-                temperatura = safe_float(fields.get('1', np.nan))
-                humedad = safe_float(fields.get('2', np.nan))
-                dist = safe_float(fields.get('3', np.nan))
-                ang = safe_float(fields.get('4', np.nan))
-                media_temp = safe_float(fields.get('5', np.nan))
-                posiciónx = safe_float(fields.get('6', np.nan))
-                posicióny = safe_float(fields.get('7', np.nan))
-                posiciónz = safe_float(fields.get('8', np.nan))
-
-                # Append time-series arrays (use i as sample index)
                 eje_x.append(i)
                 temperaturas.append(temperatura)
                 humedades.append(humedad)
                 posicionx_vals.append(posiciónx)
                 posiciony_vals.append(posicióny)
+                if 0 <= ang <= 180:
+                    # Guardar la distància en l'array (index per grau)
+                    distancies[int(ang)] = dist
 
-                # Update polar distances if angle valid (0..180)
-                if not np.isnan(ang) and 0 <= ang <= 180:
-                    idx = int(round(ang))
-                    if 0 <= idx < len(distancies):
-                        distancies[idx] = dist
-                        theta_rad = np.radians(ang)
-                        punt = ([theta_rad], [dist])
-                        beam_polar.set_data([theta_rad, theta_rad], [0, dist])
+                    # Actualitzar punt (Matplotlib polar espera radians per l'angle)
+                    theta_rad = np.radians(ang)
+                    punt = ([theta_rad], [dist])   # variable global usada per actualitza()
+                    beam_polar.set_data([np.radians(ang),np.radians(ang)],[0,dist])
 
-                # Temperature mean (if your device sends a mean in label '5' use it; otherwise compute rolling)
-                # Temperature mean
-                if not np.isnan(media_temp) and media_temp > 0:
-                # només acceptem mitjanes positives enviades pel satèl·lit
-                    Temperatura_media = media_temp
-                else:
-                    # compute rolling mean de les últimes mostres reals
-                if len(temperaturas) >= 10:
-                    Temperatura_media = float(np.mean([t for t in temperaturas[-10:] if not np.isnan(t)]))
-                else:
-                    Temperatura_media = float(np.nanmean([t for t in temperaturas if not np.isnan(t)]))
-
+                if modo_Media_temperatura == 0:
+                    if (i>9):
+                        suma=suma+temperaturas[i]-temperaturas[(i-10)]
+                        Temperatura_media = (suma)/10
+                        print(Temperatura_media)
+                    elif (i<=9):
+                        suma=suma+temperaturas[i]
+                        Temperatura_media = (suma)/10
+                        print(Temperatura_media)
+                if modo_Media_temperatura == 1:
+                    Temperatura_media = float(trozos[9])
+                    print(Temperatura_media)
                 temperaturas_medias.append(Temperatura_media)
-
                 i += 1
                 actualizar_grafica(i)
                 actualitza(posiciónx, posicióny, posiciónz)
-
+                verificar_paquet(linea)
             except Exception as e:
-                print("Error processing line:", e)
-                # continue loop
-        else:
-            # Not running: keep a light sleep and update timeline occasionally
-            time.sleep(0.05)
+                print("Error:", e)
+        if not running and time.time()%3000 == 1:
+            try:
+                eje_x.append(i)
+                temperaturas.append(np.nan)
+                humedades.append(np.nan)    
+                i += 1
+        
+                actualizar_grafica(i)
+                actualitza(posiciónx, posicióny, posiciónz)
+            except Exception as e:
+                print("Error:", e)
+                
+def preparar_paquet(missatge: bytes) -> bytes:
+    checksum = sum(missatge) % 256
+    return missatge + bytes([checksum])
 
+def verificar_paquet(paquet: bytes) -> bytes | None:
+    missatge = paquet[:-1]
+    checksum_rebut = paquet[-1]
+    checksum_calculat = sum(missatge) % 256
+    if checksum_rebut == checksum_calculat:
+        return missatge
+    else:
+        return None  # missatge corromput
 
 # Toggle left graph
 def cambiar_modo_izquierda():
@@ -229,6 +228,7 @@ def cambiar_modomedia():
         if mySerial:
             try:
                 mySerial.write(b'2')
+                preparar_paquet('2')
             except Exception as e:
                 print("Serial write error:", e)
     else:
@@ -237,6 +237,7 @@ def cambiar_modomedia():
         if mySerial:
             try:
                 mySerial.write(b'3')
+                preparar_paquet('3')
             except Exception as e:
                 print("Serial write error:", e)
 
@@ -291,11 +292,7 @@ def actualitza(posx, posy, posz):
             except Exception:
                 pass
 
-            # create and add the new slice patch (if applicable)
-            slice_patch = draw_earth_slice(posz)
-            if slice_patch is not None:
-                slice_patch._temp_slice = True
-                cart_ax.add_patch(slice_patch)
+
 
             # expand limits if needed
             curx = posicionx_vals[-1]
@@ -309,21 +306,76 @@ def actualitza(posx, posy, posz):
                 cart_ax.set_ylim(-new_ylim, new_ylim)
     canvas_polar.draw_idle()
 
-def draw_earth_slice(posz):
-    """Return a matplotlib patch representing Earth's slice at altitude posz (circle)."""
-    try:
-        if abs(posz) <= R_EARTH:
-            slice_radius = (R_EARTH**2 - posz**2)**0.5
-            # Use matplotlib.patches.Circle attached to the correct axis
-            circ = mpatches.Circle((0, 0), slice_radius, fill=False, linestyle='--', edgecolor='cyan', linewidth=1.2)
-            # mark as temporary slice so we can remove it later
-            circ._temp_slice = True
-            return circ
-        else:
-            return None
-    except Exception:
-        return None
+def create_earth_sphere():
+    """Crea la malla de l'esfera de la Terra per a Plotly."""
+    # Genera una esfera de 50x50 punts per simular la Terra
+    # L'esfera s'utilitza per fer-la semblar 'més real'
+    u, v = np.mgrid[0:2*np.pi:50j, 0:np.pi:50j]
+    x = R_EARTH * np.cos(u) * np.sin(v)
+    y = R_EARTH * np.sin(u) * np.sin(v)
+    z = R_EARTH * np.cos(v)
+    
+    # Crea el gràfic de l'esfera
+    earth_sphere = go.Surface(
+        x=x, y=y, z=z,
+        colorscale=[[0, 'rgb(0,0,150)'], [1, 'rgb(0,100,255)']],  # Color de l'aigua
+        showscale=False,
+        opacity=0.8,
+        name='Terra'
+    )
+    return earth_sphere
+def plot_orbit(earth_sphere, orbit_trail):
+    """Actualitza i mostra el gràfic 3D amb l'òrbita i la Terra."""
+    
+    if not orbit_trail:
+        return
+        
+    # Extreu les coordenades X, Y, Z de la cua
+    x_orbit, y_orbit, z_orbit = zip(*orbit_trail)
+    
+    # 1. Traçat de l'Òrbita (La Línia)
+    orbit_trace = go.Scatter3d(
+        x=x_orbit, y=y_orbit, z=z_orbit,
+        mode='lines',
+        line=dict(color='yellow', width=5),
+        name='Òrbita del Satèl·lit'
+    )
+    
+    # 2. Posició Actual del Satèl·lit (El Punt)
+    sat_point = go.Scatter3d(
+        x=[x_orbit[-1]], y=[y_orbit[-1]], z=[z_orbit[-1]],
+        mode='markers',
+        marker=dict(size=8, color='red', symbol='circle'),
+        name='Satèl·lit'
+    )
+    
+    # 3. Traçat de l'Òrbita de Referència (Cercle en el pla X-Y)
+    # Només dibuixem l'òrbita de referència si la inclinació és zero
+    angle = np.linspace(0, 2 * np.pi, 100)
+    x_ref = ORBIT_RADIUS * np.cos(angle)
+    y_ref = ORBIT_RADIUS * np.sin(angle)
+    z_ref = np.zeros_like(x_ref)
+    
+    ref_orbit = go.Scatter3d(
+        x=x_ref, y=y_ref, z=z_ref,
+        mode='lines',
+        line=dict(color='gray', width=1, dash='dash'),
+        name='Òrbita de Referència'
+    )
 
+    # Crea la figura
+    fig = go.Figure(data=[earth_sphere, ref_orbit, orbit_trace, sat_point])
+    
+    # Configuració del Layout
+    fig.update_layout(
+        title='Simulació d\'Òrbita Circular de Satèl·lit (Arduino/Python)',
+        scene=dict(
+            xaxis=dict(title='Eix X (metres)', range=[-scale_factor, scale_factor]),
+            yaxis=dict(title='Eix Y (metres)', range=[-scale_factor, scale_factor]),
+            zaxis=dict(title='Eix Z (metres)', range=[-scale_factor, scale_factor]),
+            aspectmode='cube' # Mantenir la relació d'aspecte per a una correcta visualització 3D
+        )
+    )
 def cerrar_programa():
     global running, ventana_abierta
     if messagebox.askyesno("Salir", "¿Deseas cerrar el programa?"):
@@ -473,4 +525,3 @@ window.protocol("WM_DELETE_WINDOW", cerrar_programa)
 
 # Start tkinter mainloop
 window.mainloop()
-
