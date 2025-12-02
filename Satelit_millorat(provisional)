@@ -1,6 +1,14 @@
 #include <SoftwareSerial.h>
 #include <DHT.h>
 #include <Servo.h>
+#ifndef CHECKSUM_H
+#define CHECKSUM_H
+#include <stdint.h>
+#include <stddef.h>
+#endif
+#include <string.h>
+#include <stdio.h>
+
 
 // -------------------- DHT SENSOR --------------------
 #define DHTPIN 2
@@ -117,6 +125,29 @@ float leerDistancia() {//Funcion para leer la distancia
   return -1; // todas fallaron
 }
 int q = 0;
+//Funciones checksum//
+int Checksum(char misatge[8]){
+        int i=0;
+        int suma=0;
+    while (misatge[i]!='\0'){
+        suma =suma+misatge[i];
+        i++;
+    }
+        suma = suma%256;
+        return suma;
+    }
+int Comprueva(char frase[],int resposta){
+        int suma =0;
+        int i =0;
+    while (frase[i]!='\0'){
+        suma =suma+frase[i];
+        i++;
+    }
+    if (suma%256==resposta)
+        return 1;
+    else
+        return 0;
+    }
 // ======================================================
 //                        SETUP
 // ======================================================
@@ -247,15 +278,27 @@ void loop() {
     nextImpresion = millis() + intervaloImpresion;
     }
 
-
 // --------------------------------------------------
 //                SERIAL COMMANDS 
 // --------------------------------------------------
 if (mySerial.available()) { 
 
-    String input = mySerial.readStringUntil('\n');
+     String input = mySerial.readStringUntil('\n');
     input.trim();
     Serial.println(input);
+
+    // Convertir String → char[]
+    char buf[100];
+    input.toCharArray(buf, 100);
+
+    int suma = Checksum(buf);
+    Serial.print("Checksum calculado: ");
+    Serial.println(suma);
+
+    if (Comprueva(buf, suma))
+        Serial.println("El checksum coincide");
+    else
+        Serial.println("El checksum NO coincide");
 
     int firstColon = input.indexOf(':');
     if (firstColon == -1) {
