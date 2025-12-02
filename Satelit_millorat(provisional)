@@ -240,21 +240,7 @@ void loop() {
     servoMotor.write(angulo);
      // ---- IMPRIMIR ----
   if (millis() >= nextImpresion) {
-    Serial.print("-------------"); Serial.print(q); Serial.println("-------------");
-    Serial.print("Temperatura: ");
-    Serial.println(t);
 
-    Serial.print("Humedad: ");
-    Serial.println(h);
-
-    Serial.print("Distancia: ");
-    Serial.println(distance);
-
-    Serial.print("Fallo DHT:");
-    Serial.println(fallo_TyH);
-
-    Serial.print("Fallo cercanía:");
-    Serial.println(fallo_cerca);
     // ---- COMUNICACION ----
         enviar_datos_completos(t, h, distance, angulo, m, orbX, orbY, orbZ,fallo_TyH,fallo_cerca);
         q++;
@@ -262,63 +248,65 @@ void loop() {
     }
 
 
-    // --------------------------------------------------
-    //                SERIAL COMMANDS                    //Detetca si le llega ninguna alerta deesde tierra
-    // --------------------------------------------------
-    if (mySerial.available()) { 
+// --------------------------------------------------
+//                SERIAL COMMANDS 
+// --------------------------------------------------
+if (mySerial.available()) { 
 
-        input = Serial.readStringUntil('\n');
-        input.trim();
+    String input = mySerial.readStringUntil('\n');
+    input.trim();
+    Serial.println(input);
 
-        int firstColon = input.indexOf(':');
-        int comando = (firstColon != -1)
-                        ? input.substring(0, firstColon).toInt()
-                        : input.toInt();
+    int firstColon = input.indexOf(':');
+    if (firstColon == -1) {
+        Serial.println("Formato inválido. Use LABEL:VALOR");
+        return;
+    }
 
-        switch (comando) {
-            
-            case 0:
-                Pausa2 = 0;
-                Serial.println("Reanudar"); //reanuda la transmision
-                break;
+    String label = input.substring(0, firstColon);
+    String valueStr = input.substring(firstColon + 1);
+    valueStr.trim();
 
-            case 1:
-                Pausa2 = 1;
-                Serial.println("Parar"); // para la transmision
-                break;
+    // -------------------------------
+    //        SWITCH BY LABEL
+    // -------------------------------
+    if (label == "1") {
+        int v = valueStr.toInt();
+        Pausa2 = v;
+        Serial.println(v ? "Parar" : "Reanudar");
+    }
 
-            case 2:
-                modo_Media_temperatura = 1; //Los datos de media de temperatura se leen desde el satelite
-                Serial.println("Satelite");
-                break;
-
-            case 3:
-                modo_Media_temperatura = 0; // Los datos de media de temperatura se leen desde tierra
-                Serial.println("Tierra");
-                break;
-
-            case 4:
-                aut = 1;
-                Serial.println("Modo auto"); //cambia a modo automatico el servo
-                break;
-
-            case 5:
-                aut = 0;
-                Serial.println("Modo manual"); //cambia a modo manual el servo
-                break;
-
-            case 6:
-                angulo = input.substring(firstColon + 1).toInt(); //En teoria "Envia el angulo de tierra a el satelite"
-                Serial.print("Ángulo recibido: ");
-                Serial.println(angulo);
-                break;
-
-            default:
-                Serial.print("Comando no reconocido: "); // Si lee una lectura rara aparece esto
-                Serial.println(input);
-                break;
+    else if (label == "2") {
+        if (valueStr == "1") {
+            modo_Media_temperatura = 1;
+            Serial.println("Satelite");
+        } 
+        else if (valueStr == "0") {
+            modo_Media_temperatura = 0;
+            Serial.println("Tierra");
+        }
+        else {
+            Serial.println("Valor MODO_TEMP desconocido");
         }
     }
+
+    else if (label == "AUT") {
+        int v = valueStr.toInt();
+        aut = v;
+        Serial.println(v ? "Modo auto" : "Modo manual");
+    }
+
+    else if (label == "ANGULO") {
+        angulo = valueStr.toInt();
+        Serial.print("Ángulo recibido: ");
+        Serial.println(angulo);
+    }
+
+    else {
+        Serial.print("Comando no reconocido: ");
+        Serial.println(input);
+    }
+}
 }
 
 // ======================================================
