@@ -140,22 +140,10 @@ def IniciarComunicacion2():
         if running and mySerial.in_waiting > 0:
             try:
                 linea = mySerial.readline().decode('utf-8').strip()
-                datos = {}
-
-                # Cada par es: clave:valor, concatenados así: TEMP:23.5:HUM:40.2:DIST:122
-                # Recorrer de 2 en 2
-                parts = linea.split(":")
-                j = 0
-                while j < len(parts) - 1:  # -1 para no salirnos del rango
-                    clave = parts[j].strip()
-                    valor = parts[j+1].strip()
-                    try:
-                        datos[clave] = float(valor)
-                    except ValueError:
-                        datos[clave] = float('nan')
-                        print(f"⚠ Valor no numérico para {clave}: {valor}")
-                    j += 2  # saltar al siguiente par
-
+                if ':' not in linea:
+                    continue
+                trozos = linea.split(':')
+                print(linea)
 
                 respuesta = checksum(linea)
                 print(f"{linea}|{respuesta}")
@@ -165,15 +153,15 @@ def IniciarComunicacion2():
                 else:   
                     print("El cheksum no coincide")
                 
-                temperatura         = datos.get("TEMP", float("nan"))
-                humedad             = datos.get("HUM",  float("nan"))
-                dist                = datos.get("DIST", float("nan"))
-                ang                 = datos.get("ANG",  float("nan"))
-                posiciónx           = datos.get("X",    float("nan"))
-                posicióny           = datos.get("Y",    float("nan"))
-                posiciónz           = datos.get("Z",    float("nan"))
+                temperatura = float(trozos[1])
+                humedad = float(trozos[3])
+                dist = float(trozos[5])
+                ang = float(trozos[7])
+                posiciónx = float(trozos[11])
+                posicióny = float(trozos[13])
+                posiciónz =float(trozos[15])
 
-                eje_x.append(i)
+                eje_x.append(len(eje_x))  # número de muestra
                 temperaturas.append(temperatura)
                 humedades.append(humedad)
                 posicionx_vals.append(posiciónx)
@@ -197,7 +185,7 @@ def IniciarComunicacion2():
                         Temperatura_media = (suma)/10
                         print(Temperatura_media)
                 if modo_Media_temperatura == 1:
-                    Temperatura_media   = datos.get("M",    float("nan"))
+                    Temperatura_media = float(trozos[9])
                     print(Temperatura_media)
                 temperaturas_medias.append(Temperatura_media)
                 i += 1
