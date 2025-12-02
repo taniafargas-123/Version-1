@@ -83,7 +83,7 @@ void enviar_datos_completos(float t, float h, float distance, int angulo, float 
     if (modo_Media_temperatura == 1) {
         mySerial.print(":5:"); mySerial.print(m);   // envia la mitjana calculada al satèl·lit
     } else {
-        mySerial.print(":5:"); mySerial.print("NaN"); // envia NaN si la mitjana es calcula a terra
+        mySerial.print(":5:"); mySerial.print(m); // envia NaN si la mitjana es calcula a terra
     }
 
     mySerial.print(":6:"); mySerial.print(x);
