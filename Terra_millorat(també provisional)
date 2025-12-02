@@ -19,7 +19,7 @@ bool aTiempo = 0;
 
 int nextFalloTiempo; //Esperar para las alarmas
 int intervalFalloTiempo = 5000;
-//Funció comuna per a transmisor
+
 
 
 void setup() {
@@ -32,32 +32,32 @@ void setup() {
 
 void loop() {
 
-//--------------------------------------------------
-// LECTURA SERIAL DEL MÓDULO
-//--------------------------------------------------
-if (mySerial.available()) {
+  //--------------------------------------------------
+  // LECTURA SERIAL DEL MÓDULO
+  //--------------------------------------------------
+  if (mySerial.available()) {
 
-    nextFalloTiempo = millis() + intervalFalloTiempo; 
+    nextFalloTiempo = millis() + intervalFalloTiempo; // Si hay un fallo espera
     aTiempo = 0;
 
-    String linea = mySerial.readStringUntil('\n');  
-    Serial.println("Recibido: " + linea);
+    String linea = mySerial.readStringUntil('\n'); // Lee los mensajes que le envian
+    Serial.println(linea);
 
-    char buffer[90];
+    char buffer[90];//No se que hace (preguntar a Marc)
     linea.toCharArray(buffer, 90);
 
-    char *token = strtok(buffer, ":");
+    char *token = strtok(buffer, ":"); //No se que hace (preguntar a Marc)
 
     while (token != NULL) {
 
-      int id = atoi(token);      
-      token = strtok(NULL, ":"); 
+      int id = atoi(token);//No se que hace (preguntar a Marc)
+      token = strtok(NULL, ":");
       if (token == NULL) break;
 
       float valor = atof(token);
 
       switch (id) {
-        case 1: temp = valor; break;
+        case 1: temp = valor; break;//No se que hace (preguntar a Marc)
         case 2: hum  = valor; break;
         case 3: dist = valor; break;
         case 4: angulo = valor; break;
@@ -68,30 +68,9 @@ if (mySerial.available()) {
         case 9: aDHT = valor; break;
         case 10: aCerca = valor; break;
       }
-
       token = strtok(NULL, ":");
     }
-
-    //--------------------------------------------------
-    //  📤 Enviar TODOS los datos a Python en un solo mensaje
-    //--------------------------------------------------
-
-    String paquete = 
-      "TEMP:" + String(temp) + ":" +
-      "HUM:" + String(hum) + ":" +
-      "DIST:" + String(dist) + ":" +
-      "ANG:" + String(angulo) + ":" +
-      "M:" + String(m) + ":" +
-      "X:" + String(x) + ":" +
-      "Y:" + String(y) + ":" +
-      "Z:" + String(z) + ":" +
-      "ADHT:" + String(aDHT) + ":" +
-      "ACERCA:" + String(aCerca);
-
-    Serial.println(paquete);   // Para debug
-    mySerial.println(paquete); // 🔥 Python recibe ESTO
   }
-
 
   //--------------------------------------------------
   // TIMEOUT
@@ -109,12 +88,38 @@ if (mySerial.available()) {
 
 
   //--------------------------------------------------
-  // ENVÍO DE DATOS A SATELITE
+  // ENVÍO DE DATOS A PYTHON
   //--------------------------------------------------
   if (Serial.available()) {
-    String cmd = Serial.readStringUntil('\n');
-    Serial.println(cmd);
-    mySerial.println(cmd);
+    char Pausa = Serial.read();
+    Serial.println(Pausa);
 
+    // comandos normales
+    if (Pausa == '0') mySerial.println("0:"); //comandos que se envian de python 
+    if (Pausa == '1') mySerial.println("1:");
+    if (Pausa == '2') mySerial.println("2:");
+    if (Pausa == '3') mySerial.println("3:");
+
+    // ---- ENVÍO NUEVO ----
+    // Enviar las 8 primeras juntas:
+    String paquete = "";
+    paquete += "1:" + String(temp)  + ":";
+    paquete += "2:" + String(hum)   + ":";
+    paquete += "3:" + String(dist)  + ":";
+    paquete += "4:" + String(angulo)+ ":";
+    paquete += "5:" + String(m)     + ":";
+    paquete += "6:" + String(x)     + ":";
+    paquete += "7:" + String(y)     + ":";
+    paquete += "8:" + String(z);
+
+    mySerial.println(paquete);   // ENVÍO DEL PACK DE 8 VARIABLES
+
+    // Envío separado solo si se cumplen:
+    if (aDHT == 1) {
+      mySerial.println("9:1");
+    }
+    if (aCerca == 1) {
+      mySerial.println("10:1");
+    }
   }
 }
