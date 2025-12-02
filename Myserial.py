@@ -54,8 +54,7 @@ def Parar():
     global running
     if mySerial:
         try:
-            mySerial.write(b'1')
-            preparar_paquet('1')
+            mySerial.write(b'1:0')
         except Exception as e:
             print("Serial write error:", e)
     running = False
@@ -65,8 +64,7 @@ def Reanudar():
     global running
     if mySerial:
         try:
-            mySerial.write(b'0')
-            preparar_paquet('0')
+            mySerial.write(b'1:1')
         except Exception as e:
             print("Serial write error:", e)
     running = True
@@ -117,6 +115,23 @@ def IniciarComunicacion():
     threadRecepcion = threading.Thread(target=IniciarComunicacion2, daemon=True)
     threadRecepcion.start()
 
+def checksum(mensaje):
+    sumaa = 0
+    for i in mensaje:
+        sumaa = sumaa+ord(i)
+    sumaa = sumaa % 256
+    return sumaa
+
+def Comprueva(frase,respuesta):
+    sumaa = 0
+    for i in frase:
+        sumaa = sumaa+ord(i)
+    sumaa = sumaa%256
+    if sumaa == respuesta:
+        return 1
+    else:
+        return 0
+
 def IniciarComunicacion2():
     global i, ventana_abierta, distancies, punt, linea
     suma = 0
@@ -125,17 +140,38 @@ def IniciarComunicacion2():
         if running and mySerial.in_waiting > 0:
             try:
                 linea = mySerial.readline().decode('utf-8').strip()
-                if ':' not in linea:
-                    continue
-                trozos = linea.split(':')
-                print(linea)
-                temperatura = float(trozos[1])
-                humedad = float(trozos[3])
-                dist = float(trozos[5])
-                ang = float(trozos[7])
-                posiciónx = float(trozos[11])
-                posicióny = float(trozos[13])
-                posiciónz =float(trozos[15])
+                datos = {}
+
+                # Cada par es: clave:valor, concatenados así: TEMP:23.5:HUM:40.2:DIST:122
+                # Recorrer de 2 en 2
+                parts = linea.split(":")
+                j = 0
+                while j < len(parts) - 1:  # -1 para no salirnos del rango
+                    clave = parts[j].strip()
+                    valor = parts[j+1].strip()
+                    try:
+                        datos[clave] = float(valor)
+                    except ValueError:
+                        datos[clave] = float('nan')
+                        print(f"⚠ Valor no numérico para {clave}: {valor}")
+                    j += 2  # saltar al siguiente par
+
+
+                respuesta = checksum(linea)
+                print(f"{linea}|{respuesta}")
+                respuesta2 = Comprueva(linea,respuesta)
+                if respuesta2 ==1:
+                    print("El cheksum coincide")
+                else:   
+                    print("El cheksum no coincide")
+                
+                temperatura         = datos.get("TEMP", float("nan"))
+                humedad             = datos.get("HUM",  float("nan"))
+                dist                = datos.get("DIST", float("nan"))
+                ang                 = datos.get("ANG",  float("nan"))
+                posiciónx           = datos.get("X",    float("nan"))
+                posicióny           = datos.get("Y",    float("nan"))
+                posiciónz           = datos.get("Z",    float("nan"))
 
                 eje_x.append(i)
                 temperaturas.append(temperatura)
@@ -161,13 +197,12 @@ def IniciarComunicacion2():
                         Temperatura_media = (suma)/10
                         print(Temperatura_media)
                 if modo_Media_temperatura == 1:
-                    Temperatura_media = float(trozos[9])
+                    Temperatura_media   = datos.get("M",    float("nan"))
                     print(Temperatura_media)
                 temperaturas_medias.append(Temperatura_media)
                 i += 1
                 actualizar_grafica(i)
                 actualitza(posiciónx, posicióny, posiciónz)
-                verificar_paquet(linea)
             except Exception as e:
                 print("Error:", e)
         if not running and time.time()%3000 == 1:
@@ -181,19 +216,6 @@ def IniciarComunicacion2():
                 actualitza(posiciónx, posicióny, posiciónz)
             except Exception as e:
                 print("Error:", e)
-                
-def preparar_paquet(missatge: bytes) -> bytes:
-    checksum = sum(missatge) % 256
-    return missatge + bytes([checksum])
-
-def verificar_paquet(paquet: bytes) -> bytes | None:
-    missatge = paquet[:-1]
-    checksum_rebut = paquet[-1]
-    checksum_calculat = sum(missatge) % 256
-    if checksum_rebut == checksum_calculat:
-        return missatge
-    else:
-        return None  # missatge corromput
 
 # Toggle left graph
 def cambiar_modo_izquierda():
@@ -227,8 +249,7 @@ def cambiar_modomedia():
         cambiarmediaButton.config(text="Media Tierra")
         if mySerial:
             try:
-                mySerial.write(b'2')
-                preparar_paquet('2')
+                mySerial.write(b'2:1')
             except Exception as e:
                 print("Serial write error:", e)
     else:
@@ -236,8 +257,7 @@ def cambiar_modomedia():
         cambiarmediaButton.config(text="Media Sat")
         if mySerial:
             try:
-                mySerial.write(b'3')
-                preparar_paquet('3')
+                mySerial.write(b'2:0')
             except Exception as e:
                 print("Serial write error:", e)
 
