@@ -4,6 +4,7 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from mpl_toolkits.mplot3d import Axes3D  # Importació necessària per 3D
 import time
 import numpy as np
 from tkinter import *
@@ -12,11 +13,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import re
 import difflib
 import sys
-import plotly.graph_objects as go
 from collections import deque
 
 # --- CONFIGURACIÓN SERIAL ---
-device = 'COM5'
+device = '/dev/cu.usbmodem1301'
 mySerial = serial.Serial(device, 9600, timeout=1)
 
 # --- GLOBALS ---
@@ -48,6 +48,10 @@ MAX_POINTS = 500  # Nombre màxim de punts per dibuixar la trajectòria de l'òr
 scale_factor = ORBIT_RADIUS / 1.5 # Escala visual: centre el rang de la gràfica
 refresh_interval = 2 # Actualitza la gràfica cada 2 segons (ajusta si cal)
 regex_position = re.compile(r"Position: \(X: ([\d\.-]+) m, Y: ([\d\.-]+) m, Z: ([\d\.-]+) m\)")
+
+# 3D Orbit parameters
+MAX_ORBIT_POINTS = 50  # Limita el rastro de la órbita en el gráfico 3D
+orbit_trail_3d = deque(maxlen=MAX_ORBIT_POINTS)
 
 # --- GUI functions ---
 def Parar():
@@ -166,6 +170,10 @@ def IniciarComunicacion2():
                 humedades.append(humedad)
                 posicionx_vals.append(posiciónx)
                 posiciony_vals.append(posicióny)
+                
+                # NUEVO: Almacenar la posición 3D en la cola
+                orbit_trail_3d.append((posiciónx, posicióny, posiciónz))
+
                 if 0 <= ang <= 180:
                     # Guardar la distància en l'array (index per grau)
                     distancies[int(ang)] = dist
@@ -190,7 +198,8 @@ def IniciarComunicacion2():
                 temperaturas_medias.append(Temperatura_media)
                 i += 1
                 actualizar_grafica(i)
-                actualitza(posiciónx, posicióny, posiciónz)
+                actualiza(posiciónx, posicióny, posiciónz)
+                actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
                 print("Error:", e)
         if not running and time.time()%3000 == 1:
@@ -201,7 +210,8 @@ def IniciarComunicacion2():
                 i += 1
         
                 actualizar_grafica(i)
-                actualitza(posiciónx, posicióny, posiciónz)
+                actualiza(posiciónx, posicióny, posiciónz)
+                actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
                 print("Error:", e)
 
@@ -268,7 +278,7 @@ def actualizar_grafica(x):
     canvas.draw_idle()
 
 # --- Update right plot (polar or cartesian) ---
-def actualitza(posx, posy, posz):
+def actualiza(posx, posy, posz):
     # Distance mode (polar)
     if Grafica_derecha == "Distancia":
         # update polar line and point
@@ -301,7 +311,6 @@ def actualitza(posx, posy, posz):
                 pass
 
 
-
             # expand limits if needed
             curx = posicionx_vals[-1]
             cury = posiciony_vals[-1]
@@ -314,76 +323,64 @@ def actualitza(posx, posy, posz):
                 cart_ax.set_ylim(-new_ylim, new_ylim)
     canvas_polar.draw_idle()
 
-def create_earth_sphere():
-    """Crea la malla de l'esfera de la Terra per a Plotly."""
-    # Genera una esfera de 50x50 punts per simular la Terra
-    # L'esfera s'utilitza per fer-la semblar 'més real'
-    u, v = np.mgrid[0:2*np.pi:50j, 0:np.pi:50j]
-    x = R_EARTH * np.cos(u) * np.sin(v)
-    y = R_EARTH * np.sin(u) * np.sin(v)
-    z = R_EARTH * np.cos(v)
+# --- Update 3D Orbit Plot (Matplotlib) ---
+def actualiza_grafica_3d():
+    """Actualiza y muestra el gráfico 3D de Matplotlib con el rastro de la órbita y la esfera de la Tierra."""
+    ax_3d.clear()
     
-    # Crea el gràfic de l'esfera
-    earth_sphere = go.Surface(
-        x=x, y=y, z=z,
-        colorscale=[[0, 'rgb(0,0,150)'], [1, 'rgb(0,100,255)']],  # Color de l'aigua
-        showscale=False,
-        opacity=0.8,
-        name='Terra'
-    )
-    return earth_sphere
-def plot_orbit(earth_sphere, orbit_trail):
-    """Actualitza i mostra el gràfic 3D amb l'òrbita i la Terra."""
+    # 0. Dibuixar l'Esfera de la Terra
+    # Generar la malla de punts per a l'esfera de radi R_EARTH
+    u_sphere = np.linspace(0, 2 * np.pi, 20)
+    v_sphere = np.linspace(0, np.pi, 20)
+    x_earth_sphere = R_EARTH * np.outer(np.cos(u_sphere), np.sin(v_sphere))
+    y_earth_sphere = R_EARTH * np.outer(np.sin(u_sphere), np.sin(v_sphere))
+    z_earth_sphere = R_EARTH * np.outer(np.ones(np.size(u_sphere)), np.cos(v_sphere))
     
-    if not orbit_trail:
+    # Dibuixar l'esfera
+    ax_3d.plot_surface(x_earth_sphere, y_earth_sphere, z_earth_sphere, 
+                       color='blue', alpha=0.3, edgecolor='none', label='Terra')
+    
+    if not orbit_trail_3d:
+        # Configuració inicial d'eixos si no hi ha dades
+        lim = ORBIT_RADIUS * 1.2
+        ax_3d.set_xlim([-lim, lim])
+        ax_3d.set_ylim([-lim, lim])
+        ax_3d.set_zlim([-lim, lim])
+        ax_3d.set_xlabel('X (m)')
+        ax_3d.set_ylabel('Y (m)')
+        ax_3d.set_zlabel('Z (m)')
+        ax_3d.set_title('Órbita Satélite 3D (Matplotlib)')
+        canvas_3d.draw_idle()
         return
-        
-    # Extreu les coordenades X, Y, Z de la cua
-    x_orbit, y_orbit, z_orbit = zip(*orbit_trail)
+    
+    # Extraer coordenadas del rastro
+    x_orbit, y_orbit, z_orbit = zip(*orbit_trail_3d)
     
     # 1. Traçat de l'Òrbita (La Línia)
-    orbit_trace = go.Scatter3d(
-        x=x_orbit, y=y_orbit, z=z_orbit,
-        mode='lines',
-        line=dict(color='yellow', width=5),
-        name='Òrbita del Satèl·lit'
-    )
+    ax_3d.plot(x_orbit, y_orbit, z_orbit, color='yellow', linewidth=3, label='Órbita Satélite')
     
     # 2. Posició Actual del Satèl·lit (El Punt)
-    sat_point = go.Scatter3d(
-        x=[x_orbit[-1]], y=[y_orbit[-1]], z=[z_orbit[-1]],
-        mode='markers',
-        marker=dict(size=8, color='red', symbol='circle'),
-        name='Satèl·lit'
-    )
-    
-    # 3. Traçat de l'Òrbita de Referència (Cercle en el pla X-Y)
-    # Només dibuixem l'òrbita de referència si la inclinació és zero
-    angle = np.linspace(0, 2 * np.pi, 100)
-    x_ref = ORBIT_RADIUS * np.cos(angle)
-    y_ref = ORBIT_RADIUS * np.sin(angle)
-    z_ref = np.zeros_like(x_ref)
-    
-    ref_orbit = go.Scatter3d(
-        x=x_ref, y=y_ref, z=z_ref,
-        mode='lines',
-        line=dict(color='gray', width=1, dash='dash'),
-        name='Òrbita de Referència'
-    )
+    ax_3d.scatter([x_orbit[-1]], [y_orbit[-1]], [z_orbit[-1]], 
+                  color='red', marker='o', s=50, label='Satélite Actual', zorder=10) # zorder per assegurar-se que està al davant
 
-    # Crea la figura
-    fig = go.Figure(data=[earth_sphere, ref_orbit, orbit_trace, sat_point])
-    
     # Configuració del Layout
-    fig.update_layout(
-        title='Simulació d\'Òrbita Circular de Satèl·lit (Arduino/Python)',
-        scene=dict(
-            xaxis=dict(title='Eix X (metres)', range=[-scale_factor, scale_factor]),
-            yaxis=dict(title='Eix Y (metres)', range=[-scale_factor, scale_factor]),
-            zaxis=dict(title='Eix Z (metres)', range=[-scale_factor, scale_factor]),
-            aspectmode='cube' # Mantenir la relació d'aspecte per a una correcta visualització 3D
-        )
-    )
+    ax_3d.set_title('Órbita Satélite 3D (Matplotlib)')
+    
+    # Establir límits dels eixos
+    lim = ORBIT_RADIUS * 1.2
+    ax_3d.set_xlim([-lim, lim])
+    ax_3d.set_ylim([-lim, lim])
+    ax_3d.set_zlim([-lim, lim])
+    
+    ax_3d.set_xlabel('X (m)')
+    ax_3d.set_ylabel('Y (m)')
+    ax_3d.set_zlabel('Z (m)')
+    
+    # Leyenda y redibujo
+    # ax_3d.legend(loc='lower left')
+    canvas_3d.draw_idle()
+
+
 def cerrar_programa():
     global running, ventana_abierta
     if messagebox.askyesno("Salir", "¿Deseas cerrar el programa?"):
@@ -403,13 +400,15 @@ def cerrar_programa():
 # --- TKINTER UI SETUP ---
 window = Tk()
 window.title("Monitor Serial - Temperatura y Humedad")
-window.geometry("1200x620")
+window.geometry("1200x900") # Aumentar altura per la nova gràfica 3D
 window.configure(bg="lightpink")
 
 # Grid layout
-window.rowconfigure(1, weight=1)
+window.rowconfigure(1, weight=2) # Gráficas de arriba
+window.rowconfigure(3, weight=3) # Gráfica 3D (nueva fila)
 window.columnconfigure(1, weight=2)
 window.columnconfigure(2, weight=2)
+window.columnconfigure(3, weight=1) # Columna de botones derecha
 
 tituloLabel = Label(window, text="Monitor Serial", font=("Times New Roman", 22, "italic"), bg='pink')
 tituloLabel.grid(row=0, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
@@ -528,8 +527,28 @@ cart_ax.set_visible(False)
 canvas_polar = FigureCanvasTkAgg(fig_polar, master=frame_grafica_polar)
 canvas_polar.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
+# --- Bottom Graph (3D Orbit) ---
+frame_grafica_3d = LabelFrame(window, bg="white", bd=2, text="Gráfica de Órbita 3D", font=("Arial", 11))
+# Ubicación: Fila 3, columnas 0 a 3 (ocupa todo el ancho inferior)
+frame_grafica_3d.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+frame_grafica_3d.rowconfigure(0, weight=1)
+frame_grafica_3d.columnconfigure(0, weight=1)
+
+# Crear Figura y Eje 3D
+fig_3d = matplotlib.figure.Figure(figsize=(12, 6))
+# Importante: usar projection='3d'
+ax_3d = fig_3d.add_subplot(111, projection='3d') 
+
+canvas_3d = FigureCanvasTkAgg(fig_3d, master=frame_grafica_3d)
+canvas_3d.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+
+# Llamada inicial para establecer los límites del eje 3D
+actualiza_grafica_3d()
+
+
 # protocol
 window.protocol("WM_DELETE_WINDOW", cerrar_programa)
 
 # Start tkinter mainloop
 window.mainloop()
+
