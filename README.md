@@ -36,8 +36,9 @@ Link del video demostratiu: https://drive.google.com/file/d/1L44LO0Di6GdR4LK3FuM
 
 ### **Versió 3**  
 El satèl·lit adquireix una capacitat clau: determinar i comunicar la seva posició exacta en òrbita. Aquesta informació s’uneix a la resta de dades i s’envia a terra, on l’usuari pot visualitzar la trajectòria sobre mapes intuïtius i gestionar-ho tot des d’una interfície gràfica potent i fàcil d’utilitzar. A més, la plataforma emmagatzema i recupera dades sempre que calgui, convertint el sistema en una eina útil per monitorar i entendre el comportament del satèl·lit.
-
 Link del video demostratiu: https://drive.google.com/file/d/1-j9wdUP3bScsias9G_AwwVxJ__L_HbMh/view?usp=sharing
+
+
 ---
 
 ##  Objectiu Final  
