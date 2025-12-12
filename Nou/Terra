@@ -1,0 +1,109 @@
+#include <SoftwareSerial.h>
+#define aAmarilla 2
+#define aRoja 6
+#define aVerde 4
+SoftwareSerial mySerial(10, 11); // RX, TX 
+
+float temperatura = 0;
+float humedad = 0;
+float dist = 0;
+
+float posicionX = 0;
+float posicionY = 0;
+float posicionZ = 0;
+
+
+bool aDHT = 0;      // Variables de alarmas
+bool aCerca = 0; 
+bool aTiempo = 0;
+
+int nextFalloTiempo; //Esperar para las alarmas
+int intervalFalloTiempo = 5000;
+
+
+
+void setup() {
+  Serial.begin(9600);
+  mySerial.begin(9600);
+  pinMode(aAmarilla, OUTPUT);
+  pinMode(aRoja, OUTPUT);
+  pinMode(aVerde, OUTPUT);
+}
+
+
+  //--------------------------------------------------
+  // LECTURA SERIAL DEL MÓDULO
+  //--------------------------------------------------
+  void loop() {
+
+  if (mySerial.available()) {
+
+    String input = mySerial.readStringUntil('\n');
+    input.trim();
+
+    Serial.print("Recibido: ");
+
+    // Dividir por ":" ambos lados en piezas
+    // Ej: TEMP:20:HUM:40:DIST:100 → ["TEMP","20","HUM","40","DIST","100"]
+    String parts[20];
+    int index = 0;
+
+    int lastPos = 0;
+    int colonPos = input.indexOf(':');
+
+    while (colonPos != -1) {
+        parts[index++] = input.substring(lastPos, colonPos);
+        lastPos = colonPos + 1;
+        colonPos = input.indexOf(':', lastPos);
+    }
+
+    // Guardar la última parte
+    parts[index++] = input.substring(lastPos);
+
+    // Ahora recomponemos en pares LABEL:VALOR separados por coma
+    // parts = LABEL, VALUE, LABEL, VALUE...
+    String output = "";
+
+    for (int i = 0; i < index; i += 2) {
+        String label = parts[i];
+        String value = "";
+
+        if (i + 1 < index) value = parts[i + 1];
+
+        if (output.length() > 0) output += ",";  // añadir coma si no es el primero
+
+        output += label + ":" + value;
+    }
+
+    // Enviar al Python
+    Serial.println(output);
+}
+
+
+  //--------------------------------------------------
+  // TIMEOUT
+  //--------------------------------------------------
+  if (millis() > nextFalloTiempo) { //avisa si hay un fallo en un periodo de tiempo
+    aTiempo = 1;
+  }
+
+  //--------------------------------------------------
+  // LEDS
+  //--------------------------------------------------
+  digitalWrite(aAmarilla, aTiempo == 0 ? HIGH : LOW);
+  digitalWrite(aRoja,     aDHT == 0    ? HIGH : LOW);
+  digitalWrite(aVerde,    aCerca == 0  ? HIGH : LOW);
+
+
+  //--------------------------------------------------
+  // ENVÍO DE DATOS A PYTHON
+  //--------------------------------------------------
+  if (Serial.available()) {
+    char Pausa = Serial.read();
+    Serial.println(Pausa);
+
+    // comandos normales
+    mySerial.println(Pausa); //comandos que se envian de python 
+    }
+  }
+}
