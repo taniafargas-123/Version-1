@@ -286,19 +286,6 @@ if (mySerial.available()) {
     input.trim();
     Serial.println(input);
 
-    // Convertir String → char[]
-    char buf[100];
-    input.toCharArray(buf, 100);
-
-    int suma = Checksum(buf);
-    Serial.print("Checksum calculado: ");
-    Serial.println(suma);
-
-    if (Comprueva(buf, suma))
-        Serial.println("El checksum coincide");
-    else
-        Serial.println("El checksum NO coincide");
-
     int firstColon = input.indexOf(':');
     if (firstColon == -1) {
         Serial.println("Formato inválido. Use LABEL:VALOR");
