@@ -41,8 +41,6 @@ void setup() {
     String input = mySerial.readStringUntil('\n');
     input.trim();
 
-    Serial.print("Recibido: ");
-
     // Dividir por ":" ambos lados en piezas
     // Ej: TEMP:20:HUM:40:DIST:100 → ["TEMP","20","HUM","40","DIST","100"]
     String parts[20];
@@ -99,11 +97,9 @@ void setup() {
   // ENVÍO DE DATOS A PYTHON
   //--------------------------------------------------
   if (Serial.available()) {
-    char Pausa = Serial.read();
-    Serial.println(Pausa);
-
-    // comandos normales
-    mySerial.println(Pausa); //comandos que se envian de python 
-    }
+    String Comandos = Serial.readStringUntil('\n');  // leer de Python
+    Comandos.trim();
+    
+    mySerial.println(Comandos); // enviar al otro Arduino
   }
 }
