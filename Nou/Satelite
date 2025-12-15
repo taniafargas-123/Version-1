@@ -176,8 +176,7 @@ void loop() {
             }
             mySerial.print("TEMP:"); mySerial.println(t);
             mySerial.print("HUM:"); mySerial.println(h);
-            Serial.print("TEMP:"); Serial.println(t);
-            Serial.print("HUM:"); Serial.println(h);
+
             if (modo_Media_temperatura == 1) {
                 mySerial.print("MED:"); mySerial.print(m);   // envia la mitjana calculada al satèl·lit
             } else {
@@ -237,8 +236,6 @@ void loop() {
         }
         mySerial.print("DIST:"); mySerial.println(distance);
         mySerial.print("ANG:"); mySerial.println(90);
-        Serial.print("DIST:"); Serial.println(distance);
-        Serial.print("ANG:"); Serial.println(90);
 
         nextMillis2 = millis() + interval2;
     }
@@ -276,8 +273,8 @@ if (mySerial.available()) {
         else if (valueStr == "0") {
             Pausa2 = 0;
             Serial.println("Reanudar");
+        }
     }
-
     else if (label == "2") {
         if (valueStr== "1") {
             modo_Media_temperatura = 1;
@@ -310,7 +307,7 @@ if (mySerial.available()) {
     }
     else if (label =="4") {
         interval2 = (valueStr.toInt()*1000);
-        Serial.print("Periodo temperatura recibido:");
+        Serial.print("Periodo distancia recibido:");
         Serial.println(interval2);
     }
 
@@ -320,7 +317,7 @@ if (mySerial.available()) {
     }
 }
 }
-}
+
 
 // ======================================================
 //                  ORBIT SIMULATION FUNC
