@@ -33,10 +33,22 @@ eje_x = []
 posicionx_vals = []
 posiciony_vals = []
 i = 0
+j= 0
 
 Grafica_izquierda = "Temperatura"   # "Temperatura" or "Humedad"
-Grafica_derecha = "Distancia"       # "Distancia" or "Posición"
-modo_Media_temperatura = 0
+Grafica_derecha = "Distancia"       # "Distancia" or "Posicion"
+
+# Variables media temp
+modo_Media_temperatura=0
+buffer_temp = []
+indice_temp = 0
+contador_temp = 0
+suma_temp = 0.0
+Temperatura_media = None
+N = 10
+
+
+
 
 # Small helpers / constants
 R_EARTH = 6371000  # meters
@@ -95,18 +107,18 @@ def Enter_pressed(event=None):
         cmd = match[0]
         if cmd == "periodo temperatura":
             periodo_temp = numero
-            print('3:'+periodo_temp)
+            print('3:'+str(numero))
             if mySerial:
                 try:
-                    mySerial.write(str('3:'+periodo_temp).encode())
+                    mySerial.write(str('3:'+str(numero)).encode())
                 except Exception as e:
                     print("Serial write error:", e)
         elif cmd == "periodo distancia":
             periodo_dist = numero
-            print('4:'+periodo_dist)
+            print('4:'+str(numero))
             if mySerial:
                 try:
-                    mySerial.write(str('4:'+periodo_dist).encode())
+                    mySerial.write(str('4:'+str(numero)).encode())
                 except Exception as e:
                     print("Serial write error:", e)
     else:
@@ -143,92 +155,119 @@ def Comprueva(frase,respuesta):
 
 def IniciarComunicacion2():
     print("Iniciado")
-    global i, ventana_abierta, distancies, punt, linea
+    global i, ventana_abierta, distancies, punt, linea,j,buffer_temp, indice_temp, contador_temp, suma_temp, Temperatura_media
     suma = 0
     Temperatura_media = 0
     while ventana_abierta:
         if running and mySerial.in_waiting > 0:
-            temperatura = humedad = dist = posiciónx = posicióny = posiciónz = None
+            temperatura = None
+            humedad = None
+            dist = None
+            ang = None
+            posicionx = None
+            posiciony = None
+            posicionz = None
             ang =90
             try:
                 linea = mySerial.readline().decode('utf-8').strip()
-
                 print(linea)
-                partes = linea.split(',')
+
                 if ':' not in linea:
-                    print("Línea inválida:", linea)
+                    print("Línea inválida")
                     continue
 
-                for parte in partes:
-                    if ':' not in parte:
-                        print("Parte inválida:", parte)
-                        continue
+                prefijo, valor = linea.split(':', 1)
 
-                    prefijo, valor = parte.split(':', 1)
+                try:
+                    prefijo = str(prefijo)
+                    valor = float(valor)
+                except ValueError:
+                    print("Valor no numérico:", valor)
+                    continue
 
-                    if prefijo == 'TEMP':
-                        temperatura = float(valor)
-                    elif prefijo == 'HUM':
-                        humedad = float(valor)
-                    elif prefijo == 'DIST':
-                        dist = float(valor)
-                    elif prefijo == 'ANG':
-                        ang = float(valor)
-                    elif prefijo == 'X':
-                        posiciónx = float(valor)
-                    elif prefijo == 'Y':
-                        posicióny = float(valor)
-                    elif prefijo == 'Z':
-                        posiciónz = float(valor)
+                if prefijo == 'TEMP':
+                    temperatura = valor
+                    j =j+1
+                elif prefijo == 'HUM':
+                    humedad = valor
+                elif prefijo == 'DIST':
+                    dist = valor
+                elif prefijo == 'ANG':
+                    ang = valor
+                elif prefijo == 'X':
+                    posicionx = valor
+                elif prefijo == 'Y':
+                    posiciony = valor
+                elif prefijo =='MED':
+                    if modo_Media_temperatura == 1:
+                        Temperatura_media = valor
+                        print(Temperatura_media)
+                elif prefijo == 'Z':
+                    posicionz = valor
+                else:
+                    print("Prefijo no reconocido:", prefijo)
+                
+                # SOLO añadir cuando hay datos válidos
+                if temperatura is not None:
+                    eje_x.append(len(eje_x))
+                    temperaturas.append(temperatura)
+                    temperaturas_medias.append(Temperatura_media)
+
+                if humedad is not None:
+                    humedades.append(humedad)
+
+                if posicionx is not None and posiciony is not None:
+                    posicionx_vals.append(posicionx)
+                    posiciony_vals.append(posiciony)
+ 
+                
+                if posicionx is not None and posiciony is not None and posicionz is not None:
+                    orbit_trail_3d.append((posicionx, posiciony, posicionz))
+
+
+                # SOLO actualizar radar si ambos existen
+                if ang is not None and dist is not None:
+                    if 0 <= ang <= 180:
+                        idx = int(round(ang))
+                        distancies[idx] = dist
+
+                        theta_rad = np.radians(idx)
+                        punt = ([theta_rad], [dist])
+
+                        # beam
+                        beam_polar.set_data([theta_rad, theta_rad], [0, dist])
+
+                if modo_Media_temperatura == 0 and temperatura is not None:
+                    # Fase inicial: menos de 10 valores
+                    if len(buffer_temp) < N:
+                        buffer_temp.append(temperatura)
+                        suma_temp += temperatura
                     else:
-                        print("Prefijo no reconocido:", prefijo)
-                
-                eje_x.append(len(eje_x))  # número de muestra
-                temperaturas.append(temperatura)
-                humedades.append(humedad)
-                posicionx_vals.append(posiciónx)
-                posiciony_vals.append(posicióny) 
-                
-                # NUEVO: Almacenar la posición 3D en la cola
-                orbit_trail_3d.append((posiciónx, posicióny, posiciónz))
+                        # Bucle circular: sobrescribir el valor más antiguo
+                        suma_temp -= buffer_temp[indice_temp]
+                        buffer_temp[indice_temp] = temperatura
+                        suma_temp += temperatura
+                        indice_temp = (indice_temp + 1) % N
 
-                if 0 <= ang <= 180:
-                    # Guardar la distància en l'array (index per grau)
-                    distancies[int(ang)] = dist
+                    # Calcular media siempre con la cantidad actual de muestras
+                    Temperatura_media = suma_temp / len(buffer_temp)
 
-                    # Actualitzar punt (Matplotlib polar espera radians per l'angle)
-                    theta_rad = np.radians(ang)
-                    punt = ([theta_rad], [dist])   # variable global usada per actualitza()
-                    beam_polar.set_data([np.radians(ang),np.radians(ang)],[0,dist])
+                    # Guardar para la gráfica
+                    temperaturas_medias.append(Temperatura_media)
 
-                if modo_Media_temperatura == 0:
-                    if (i>9):
-                        suma=suma+temperaturas[i]-temperaturas[(i-10)]
-                        Temperatura_media = (suma)/10
-                        print(Temperatura_media)
-                    elif (i<=9):
-                        suma=suma+temperaturas[i]
-                        Temperatura_media = (suma)/10
-                        print(Temperatura_media)
-                if modo_Media_temperatura == 1:
-                    Temperatura_media = posiciónz = valor
-                    print(Temperatura_media)
-                temperaturas_medias.append(Temperatura_media)
-                i += 1
-                actualizar_grafica(i)
-                actualiza(posiciónx, posicióny, posiciónz)
+
+                actualizar_grafica(j)
+                actualiza(posicionx, posiciony, posicionz)
                 actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
                 print("Error:", e)
         if not running and time.time()%3000 == 1:
             try:
-                eje_x.append(i)
+                eje_x.append()
                 temperaturas.append(np.nan)
                 humedades.append(np.nan)    
-                i += 1
-        
-                actualizar_grafica(i)
-                actualiza(posiciónx, posicióny, posiciónz)
+                actualizar_grafica(j)
+                actualiza(posicionx, posiciony, posicionz)
                 actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
                 print("Error:", e)
@@ -248,14 +287,14 @@ def cambiar_modo_izquierda():
 def cambiar_modo_derecha():
     global Grafica_derecha
     if Grafica_derecha == "Distancia":
-        Grafica_derecha = "Posición"
+        Grafica_derecha = "Posicion"
         cambiarButtonderecha.config(text="Mostrar Distancia")
     else:
         Grafica_derecha = "Distancia"
-        cambiarButtonderecha.config(text="Mostrar Posición")
+        cambiarButtonderecha.config(text="Mostrar Posicion")
     # show/hide axes accordingly
     polar_ax.set_visible(Grafica_derecha == "Distancia")
-    cart_ax.set_visible(Grafica_derecha == "Posición")
+    cart_ax.set_visible(Grafica_derecha == "Posicion")
     canvas_polar.draw_idle()
 
 def cambiar_modomedia():
@@ -282,8 +321,10 @@ def actualizar_grafica(x):
     ax.clear()
     if Grafica_izquierda == "Temperatura":
         ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 50))
-        ax.plot(eje_x, temperaturas, label='Temperatura (°C)')
-        ax.plot(eje_x, temperaturas_medias, label='Media temperaturas')
+        n = min(len(eje_x), len(temperaturas))
+        ax.plot(eje_x[:n], temperaturas[:n], label='Temperatura (°C)')
+        n2 = min(len(eje_x), len(temperaturas_medias))
+        ax.plot(eje_x[:n2], temperaturas_medias[:n2], label='Media temperaturas')
         ax.set_ylabel('Temperatura (°C)')
         ax.set_title('Gráfica de Temperatura')
     else:
@@ -300,7 +341,9 @@ def actualiza(posx, posy, posz):
     # Distance mode (polar)
     if Grafica_derecha == "Distancia":
         # update polar line and point
-        linea_polar.set_data(np.radians(np.arange(0, 181)), distancies)
+        angles_rad = np.radians(np.arange(0, 181))
+        linea_polar.set_data(angles_rad, distancies)
+
         # update current point if punt defined
         try:
             if 'punt' in globals() and punt is not None:
@@ -475,7 +518,7 @@ cambiarmediaButton.grid(row=4, column=0, padx=5, pady=5)
 
 PararButtonPolar = Button(frame_botones_dos, text ="Parar",bg ='lightblue',fg ="black",command =nada, **boton_style)
 ReanudarButtonPolar = Button(frame_botones_dos, text="Reanudar", bg='lightyellow', fg="black", command=nada, **boton_style)
-cambiarButtonderecha = Button(frame_botones_dos, text="Mostrar Posición", bg='lightgreen', fg="black", command=cambiar_modo_derecha, **boton_style)
+cambiarButtonderecha = Button(frame_botones_dos, text="Mostrar Posicion", bg='lightgreen', fg="black", command=cambiar_modo_derecha, **boton_style)
 
 PararButtonPolar.grid(row=1, column=0, padx=5, pady=5)
 ReanudarButtonPolar.grid(row=2, column=0, padx=5, pady=5)
