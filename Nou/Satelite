@@ -46,7 +46,7 @@ double orbY = 0;
 double orbZ = 0;
 
 // -------------------- DATA SENDING -------------------
-int Pausa2 = 0;
+int Pausa2 = 1;
 int modo_Media_temperatura = 0;
 float temperaturas[100];
 float suma = 0;
@@ -80,14 +80,6 @@ String input = "";
 SoftwareSerial mySerial(10, 11); // RX, TX
 // Before Setup Se crea una funcion para enviar todos los datos de una
 
-void enviar_datos_completos(double x, double y, double z, float fallo_TyH, float fallo_cerca) {
-
-    mySerial.print("X:"); mySerial.print(x);
-    mySerial.print("Y:"); mySerial.print(y);
-    mySerial.print("Z:"); mySerial.println(z);
-    mySerial.print("Fallo_TyH:"); mySerial.print(fallo_TyH);
-    mySerial.print("Fallo_Cerca:"); mySerial.println(fallo_cerca);
-}
 
 float leerDistancia() {//Funcion para leer la distancia
   long duracion;
@@ -114,28 +106,7 @@ float leerDistancia() {//Funcion para leer la distancia
 }
 int q = 0;
 //Funciones checksum//
-int Checksum(char misatge[8]){
-        int i=0;
-        int suma=0;
-    while (misatge[i]!='\0'){
-        suma =suma+misatge[i];
-        i++;
-    }
-        suma = suma%256;
-        return suma;
-    }
-int Comprueva(char frase[],int resposta){
-        int suma =0;
-        int i =0;
-    while (frase[i]!='\0'){
-        suma =suma+frase[i];
-        i++;
-    }
-    if (suma%256==resposta)
-        return 1;
-    else
-        return 0;
-    }
+
 // ======================================================
 //                        SETUP
 // ======================================================
@@ -179,12 +150,12 @@ void loop() {
     //  SENSOR + DATA SENDING  every interval1
     // --------------------------------------------------
     if (Pausa2 == 0 && millis() >= nextMillis1) {
-
         h = dht.readHumidity();
         t = dht.readTemperature();
 
         if (isnan(h) || isnan(t)) {//Si h o t da nan enviar error
             esperandoTimeout = true;
+            Serial.print("Error");
         } else {
             esperandoTimeout = false;
             fallo_TyH = 0; // Se recuperó
@@ -201,16 +172,17 @@ void loop() {
                 else {
                     suma += temperaturas[i];
                     m = suma / 10.0;
+                }
             }
-            mySerial.print("TEMP:"); mySerial.print(t);
-            mySerial.print("HUM:"); mySerial.print(h);
+            mySerial.print("TEMP:"); mySerial.println(t);
+            mySerial.print("HUM:"); mySerial.println(h);
+            Serial.print("TEMP:"); Serial.println(t);
+            Serial.print("HUM:"); Serial.println(h);
             if (modo_Media_temperatura == 1) {
                 mySerial.print("MED:"); mySerial.print(m);   // envia la mitjana calculada al satèl·lit
             } else {
                 mySerial.print("MED:"); mySerial.print(m); // envia NaN si la mitjana es calcula a terra
-    }
-        }
-
+            }
         i++;
         }
         nextMillis1 = millis() + interval1;
@@ -253,7 +225,7 @@ void loop() {
     }
 
     // ---- SENSOR ULTRASONICO ----
-    if (Pausa2 == 0 && millis() >= nextMillis2)
+    if (Pausa2 == 0 && millis() >= nextMillis2){
         distance = leerDistancia(); //Detetca si hay un error y si no envia distancia
         if (distance == -1) {
             Serial.println("Lectura ultrasónica inválida");
@@ -263,19 +235,16 @@ void loop() {
         } else {
             fallo_cerca = 0;
         }
-        mySerial.print("DIST:"); mySerial.print(distance);
-        mySerial.print("ANG:"); mySerial.print(angulo);
+        mySerial.print("DIST:"); mySerial.println(distance);
+        mySerial.print("ANG:"); mySerial.println(90);
+        Serial.print("DIST:"); Serial.println(distance);
+        Serial.print("ANG:"); Serial.println(90);
+
         nextMillis2 = millis() + interval2;
+    }
 
     servoMotor.write(angulo);
      // ---- IMPRIMIR ----
-  if (millis() >= nextImpresion) {
-
-    // ---- COMUNICACION ----
-        enviar_datos_completos(orbX, orbY, orbZ,fallo_TyH,fallo_cerca);
-        q++;
-    nextImpresion = millis() + intervaloImpresion;
-    }
 
 // --------------------------------------------------
 //                SERIAL COMMANDS 
@@ -300,13 +269,17 @@ if (mySerial.available()) {
     //        SWITCH BY LABEL
     // -------------------------------
     if (label == "1") {
-        int v = valueStr.toInt();
-        Pausa2 = v;
-        Serial.println(v ? "Parar" : "Reanudar");
+        if (valueStr == "1") {
+            Pausa2 = 1;
+            Serial.println("Pausar");
+        } 
+        else if (valueStr == "0") {
+            Pausa2 = 0;
+            Serial.println("Reanudar");
     }
 
     else if (label == "2") {
-        if (valueStr == "1") {
+        if (valueStr== "1") {
             modo_Media_temperatura = 1;
             Serial.println("Satelite");
         } 
@@ -345,6 +318,7 @@ if (mySerial.available()) {
         Serial.print("Comando no reconocido: ");
         Serial.println(input);
     }
+}
 }
 }
 
