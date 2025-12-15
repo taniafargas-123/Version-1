@@ -40,41 +40,7 @@ void setup() {
 
     String input = mySerial.readStringUntil('\n');
     input.trim();
-
-    // Dividir por ":" ambos lados en piezas
-    // Ej: TEMP:20:HUM:40:DIST:100 → ["TEMP","20","HUM","40","DIST","100"]
-    String parts[20];
-    int index = 0;
-
-    int lastPos = 0;
-    int colonPos = input.indexOf(':');
-
-    while (colonPos != -1) {
-        parts[index++] = input.substring(lastPos, colonPos);
-        lastPos = colonPos + 1;
-        colonPos = input.indexOf(':', lastPos);
-    }
-
-    // Guardar la última parte
-    parts[index++] = input.substring(lastPos);
-
-    // Ahora recomponemos en pares LABEL:VALOR separados por coma
-    // parts = LABEL, VALUE, LABEL, VALUE...
-    String output = "";
-
-    for (int i = 0; i < index; i += 2) {
-        String label = parts[i];
-        String value = "";
-
-        if (i + 1 < index) value = parts[i + 1];
-
-        if (output.length() > 0) output += ",";  // añadir coma si no es el primero
-
-        output += label + ":" + value;
-    }
-
-    // Enviar al Python
-    Serial.println(output);
+    Serial.println(input);
 }
 
 
@@ -103,3 +69,4 @@ void setup() {
     mySerial.println(Comandos); // enviar al otro Arduino
   }
 }
+
