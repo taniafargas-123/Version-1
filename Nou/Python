@@ -58,7 +58,7 @@ def Parar():
     global running
     if mySerial:
         try:
-            mySerial.write(b'1:0')
+            mySerial.write(b'1:1')
         except Exception as e:
             print("Serial write error:", e)
     running = False
@@ -68,14 +68,14 @@ def Reanudar():
     global running
     if mySerial:
         try:
-            mySerial.write(b'1:1')
+            mySerial.write(b'1:0')
         except Exception as e:
             print("Serial write error:", e)
     running = True
     print("▶ Comunicación reanudada")
 
 def nada():
-    print("nada")
+    print('3:'+periodo_temp)
 
 def Enter_pressed(event=None):
     """Parse user text for 'periodo temperatura N' or 'periodo distancia N' (fuzzy)."""
@@ -116,6 +116,11 @@ def Enter_pressed(event=None):
 def IniciarComunicacion():
     global running
     running = True
+    if mySerial:
+        try:
+            mySerial.write(b'1:0')
+        except Exception as e:
+            print("Serial write error:", e)
     threadRecepcion = threading.Thread(target=IniciarComunicacion2, daemon=True)
     threadRecepcion.start()
 
@@ -137,6 +142,7 @@ def Comprueva(frase,respuesta):
         return 0
 
 def IniciarComunicacion2():
+    print("Iniciado")
     global i, ventana_abierta, distancies, punt, linea
     suma = 0
     Temperatura_media = 0
@@ -166,6 +172,8 @@ def IniciarComunicacion2():
                         humedad = float(valor)
                     elif prefijo == 'DIST':
                         dist = float(valor)
+                    elif prefijo == 'ANG':
+                        ang = float(valor)
                     elif prefijo == 'X':
                         posiciónx = float(valor)
                     elif prefijo == 'Y':
@@ -179,7 +187,7 @@ def IniciarComunicacion2():
                 temperaturas.append(temperatura)
                 humedades.append(humedad)
                 posicionx_vals.append(posiciónx)
-                posiciony_vals.append(posicióny)
+                posiciony_vals.append(posicióny) 
                 
                 # NUEVO: Almacenar la posición 3D en la cola
                 orbit_trail_3d.append((posiciónx, posicióny, posiciónz))
