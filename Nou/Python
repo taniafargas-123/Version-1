@@ -67,7 +67,39 @@ ALTITUDE = 400000.0  # Altitud (metres)
 ORBIT_RADIUS = R_EARTH + ALTITUDE
 
 # Debugging flag for trail handling
-DEBUG_TRAIL = True  # Set to False to disable debug prints
+DEBUG_TRAIL = False  # Set to True to enable verbose debug prints
+
+# Clean terminal output: show only a single tidy data line per iteration and
+# print errors prefixed with [ERR]. Set to False to keep full verbose debug.
+CLEAN_OUTPUT = True
+
+def _fmt(v, precision=2):
+    try:
+        if v is None:
+            return "-"
+        if isinstance(v, (int,)):
+            return str(v)
+        return f"{float(v):.{precision}f}"
+    except Exception:
+        return str(v)
+
+def print_clean_line(temperatura, humedad, dist, ang, last_posx, last_posy, last_posz, checksum_detected=None, checksum_ok=None):
+    """Print a compact summary line of the most relevant variables."""
+    t = _fmt(temperatura, 2)
+    h = _fmt(humedad, 1)
+    d = _fmt(dist, 2)
+    a = _fmt(ang, 1)
+    x = _fmt(last_posx, 2)
+    y = _fmt(last_posy, 2)
+    z = _fmt(last_posz, 2)
+    if checksum_detected is None:
+        chk = "-"
+    else:
+        if checksum_ok is None:
+            chk = "DET"
+        else:
+            chk = "OK" if checksum_ok else "FAIL"
+    print(f"[DATA] T={t}C H={h}% D={d} A={a} X={x} Y={y} Z={z} CHK={chk}")
 
 # Linear ramp for temperature median display: scale median from 0 to full value over N samples
 # (displayed_median = median(buffer_temp) * min(len(buffer_temp), N) / N)
@@ -77,6 +109,45 @@ MAX_POINTS = 500  # Nombre màxim de punts per dibuixar la trajectòria de l'òr
 scale_factor = ORBIT_RADIUS / 1.5 # Escala visual: centre el rang de la gràfica
 refresh_interval = 2 # Actualitza la gràfica cada 2 segons (ajusta si cal)
 regex_position = re.compile(r"Position: \(X: ([\d\.-]+) m, Y: ([\d\.-]+) m, Z: ([\d\.-]+) m\)")
+
+# Compute checksum candidates from parsed numeric fields or original line text
+def compute_checksum_candidates(values, line_text=None):
+    """Return a set of integer checksum candidates (0-255) computed from values.
+    Strategies included: sum of rounded ints, xor of rounded ints, ASCII-sum of comma-joined reprs, ASCII-sum of original line (if available)."""
+    candidates = set()
+    try:
+        # Rounded integer sum
+        ints = [int(round(v)) & 0xFF for v in values]
+        candidates.add(sum(ints) % 256)
+        # XOR of ints
+        xr = 0
+        for iv in ints:
+            xr ^= iv
+        candidates.add(xr & 0xFF)
+        # ASCII sum of comma-joined values
+        s = ','.join(str(v) for v in values)
+        try:
+            candidates.add(sum(s.encode('ascii')) % 256)
+        except Exception:
+            pass
+    except Exception:
+        pass
+    if line_text:
+        try:
+            candidates.add(sum(line_text.encode('ascii', errors='ignore')) % 256)
+        except Exception:
+            pass
+    return candidates
+
+def verify_checksum(expected, values, line_text=None):
+    """Return True if expected matches any computed candidate."""
+    try:
+        cands = compute_checksum_candidates(values, line_text)
+        if DEBUG_TRAIL:
+            print(f"[CHK-VER] expected=0x{expected:02X} candidates={[hex(c) for c in cands]}")
+        return (expected & 0xFF) in cands
+    except Exception:
+        return False
 
 # 3D Orbit parameters
 MAX_ORBIT_POINTS = 50  # Limita el rastro de la órbita en el gráfico 3D
@@ -317,14 +388,111 @@ def IniciarComunicacion2():
                 line_bytes = mySerial.readline()
                 if not line_bytes:
                     continue
-                try:
-                    linea = line_bytes.decode('utf-8', errors='replace').strip()
-                except Exception:
-                    # Fallback to latin1 to preserve byte values if unexpected
-                    linea = line_bytes.decode('latin1', errors='replace').strip()
+
+                # Attempt to detect and verify checksum from raw bytes.
+                # Supported formats we TRY to detect:
+                #  - ASCII hex suffix separated by '*' : <data>*<HEXCS>
+                #  - Binary trailing checksum byte: <data><CSUM_BYTE> where CSUM_BYTE == sum(data) % 256
+                # We treat a binary trailing checksum as *present* only when the last byte is non-printable
+                # (to avoid mis-detecting ordinary ASCII characters as a checksum).
+                stripped = line_bytes.rstrip(b"\r\n")
+                checksum_ok = None
+                checksum_detected = False
+                checksum_failed_raw = False
+                fallback_expected = None
+                data_bytes = stripped
 
                 if DEBUG_TRAIL:
-                    # Show raw bytes in hex and the decoded string (replacement chars mark undecodable bytes)
+                    lb = stripped[-1] if len(stripped) > 0 else None
+                    try:
+                        lb_hex = hex(lb) if lb is not None else None
+                    except Exception:
+                        lb_hex = str(lb)
+                    star_idx_preview = stripped.rfind(b"*")
+                    print(f"[CHK] detection-hint len={len(stripped)}, star_idx_preview={star_idx_preview}, last_byte={lb_hex}, last_printable={(32 <= lb <= 126) if lb is not None else None}")
+
+                # 1) Try ASCII hex suffix after '*'
+                star_idx = stripped.rfind(b"*")
+                if star_idx != -1 and star_idx < len(stripped)-1:
+                    suffix = stripped[star_idx+1:]
+                    try:
+                        expected = int(suffix.decode('ascii'), 16)
+                        csum = sum(stripped[:star_idx]) % 256
+                        checksum_detected = True
+                        fallback_expected = expected
+                        if csum == expected:
+                            checksum_ok = True
+                            data_bytes = stripped[:star_idx]
+                            if DEBUG_TRAIL:
+                                print(f"[CHK] hex csum OK: computed=0x{csum:02X} suffix=0x{expected:02X}")
+                        else:
+                            checksum_ok = False
+                            checksum_failed_raw = True
+                            if DEBUG_TRAIL:
+                                print(f"[CHK] hex csum FAIL: computed=0x{csum:02X} suffix=0x{expected:02X}")
+                    except Exception:
+                        # Not a valid hex suffix
+                        checksum_detected = False
+
+                # 2) If no ASCII hex checksum detected, consider binary trailing checksum if last byte is non-printable
+                if not checksum_detected and len(stripped) >= 2:
+                    last_byte = stripped[-1]
+                    # Treat as binary checksum only when last_byte is non-printable control-like byte
+                    if last_byte < 32 or last_byte > 126:
+                        candidate = stripped[:-1]
+                        checksum_detected = True
+                        fallback_expected = last_byte
+                        try:
+                            csum_sum = sum(candidate) % 256
+                            if csum_sum == last_byte:
+                                checksum_ok = True
+                                data_bytes = candidate
+                                if DEBUG_TRAIL:
+                                    print(f"[CHK] binary sum csum OK: computed=0x{csum_sum:02X} last_byte=0x{last_byte:02X}")
+                            else:
+                                # try XOR as a common alternative checksum
+                                csum_xor = 0
+                                for b in candidate:
+                                    csum_xor ^= b
+                                if csum_xor == last_byte:
+                                    checksum_ok = True
+                                    data_bytes = candidate
+                                    if DEBUG_TRAIL:
+                                        print(f"[CHK] binary XOR csum OK: computed=0x{csum_xor:02X} last_byte=0x{last_byte:02X}")
+                                else:
+                                    checksum_ok = False
+                                    checksum_failed_raw = True
+                                    if DEBUG_TRAIL:
+                                        print(f"[CHK] binary csum FAIL: sum=0x{csum_sum:02X} xor=0x{csum_xor:02X} last_byte=0x{last_byte:02X}")
+                        except Exception:
+                            checksum_ok = False
+
+                # If no checksum was detected, show a debug hint
+                if not checksum_detected and DEBUG_TRAIL:
+                    try:
+                        print(f"[CHK] No checksum detected in line: {stripped.hex()}")
+                    except Exception:
+                        print("[CHK] No checksum detected in line (non-hex display)")
+
+                # If a checksum was detected and failed, skip this line
+                if checksum_detected and checksum_ok is False:
+                    # If verbose debug is enabled, log raw drop reason; otherwise let fallback/parsed checks handle it.
+                    if DEBUG_TRAIL:
+                        try:
+                            print(f"[CHK] Dropping line (checksum mismatch): {stripped.hex()}")
+                        except Exception:
+                            print("[CHK] Dropping line (checksum mismatch)")
+                    # Allow fallback verification later; do not unconditionally continue here.
+                    pass
+
+                # Decode the data bytes to text for parsing (use replacement for undecodable bytes)
+                try:
+                    linea = data_bytes.decode('utf-8', errors='replace').strip()
+                except Exception:
+                    linea = data_bytes.decode('latin1', errors='replace').strip()
+
+                # Minimal terminal output: when CLEAN_OUTPUT is enabled, suppress raw byte and raw-line noise
+                if DEBUG_TRAIL:
                     try:
                         print(f"[RAW_BYTES] {line_bytes.hex()}")
                     except Exception:
@@ -352,8 +520,8 @@ def IniciarComunicacion2():
                         if DEBUG_TRAIL:
                             print(f"[PARSE] Position line -> X={px}, Y={py}, Z={pz}")
                     except Exception as e:
-                        if DEBUG_TRAIL:
-                            print(f"[PARSE] Position parse failed: {e}")
+                        # Position parsing failed: report as an error so the terminal remains informative
+                        print(f"[ERR] Position parse failed: {e}")
                 else:
                     # 2) Try key:value form (e.g., "X: 123.4 m")
                     if ':' not in linea:
@@ -407,17 +575,96 @@ def IniciarComunicacion2():
                         pos_updated = True
                         if DEBUG_TRAIL:
                             print(f"[PARSE] Z update -> {valor_num}")
+                    elif prefijo in ('CS', 'CHK', 'CHECK', 'CRC', 'SUM', 'CSUM'):
+                        # Expected checksum value provided by Arduino. Try to parse it (support hex like 0xAB).
+                        expected = None
+                        raw_val = valor.strip()
+                        try:
+                            # int(..., 0) will handle 0xNN hex prefixes
+                            expected = int(raw_val, 0)
+                        except Exception:
+                            # Try to find a hex token anywhere in the string (e.g., "*AB" or "AB")
+                            mhex = re.search(r"([0-9A-Fa-f]{1,2})", raw_val)
+                            if mhex:
+                                try:
+                                    expected = int(mhex.group(1), 16)
+                                except Exception:
+                                    expected = None
+                            else:
+                                # Fallback: try numeric extraction and cast
+                                try:
+                                    cleaned = re.sub(r'[^0-9\.,-]+', '', raw_val).replace(',', '.')
+                                    expected = int(float(cleaned))
+                                except Exception:
+                                    expected = None
+
+                        if expected is not None:
+                            # Build a candidate values list from the numeric variables we know at this moment
+                            values = []
+                            for nm in ('temperatura', 'humedad', 'dist', 'ang', 'last_posx', 'last_posy', 'last_posz'):
+                                try:
+                                    v = locals().get(nm)
+                                except Exception:
+                                    v = None
+                                if v is not None:
+                                    values.append(v)
+
+                            ok = verify_checksum(expected, values, line_text=linea)
+                            if not ok:
+                                # Always report failed explicit checksum fields as errors
+                                print(f"[ERR] checksum verification FAILED -> expected=0x{expected:02X}, values={values}")
+                                # Drop this line (invalid checksum)
+                                continue
+                            else:
+                                if DEBUG_TRAIL:
+                                    print(f"[CHK] checksum verification OK -> expected=0x{expected:02X}, values={values}")
+                        else:
+                            print(f"[ERR] could not parse expected checksum from '{valor}'")
                     else:
                         if DEBUG_TRAIL:
                             print("[PARSE] Prefijo no reconocido:", prefijo)
                 
-                # SOLO añadir cuando hay datos válidos
+                    # If a raw-byte checksum was detected but raw validation failed, try to
+                    # verify it using the parsed numeric variables (Arduino may compute
+                    # checksum over numeric fields rather than raw bytes).
+                    if checksum_detected and checksum_ok is False and checksum_failed_raw and fallback_expected is not None:
+                        values = []
+                        for nm in ('temperatura', 'humedad', 'dist', 'ang', 'last_posx', 'last_posy', 'last_posz'):
+                            try:
+                                v = locals().get(nm)
+                            except Exception:
+                                v = None
+                            if v is not None:
+                                values.append(v)
+
+                        ok2 = verify_checksum(fallback_expected, values, line_text=linea)
+                        if not ok2:
+                            # Report fallback verification failure as an error
+                            print(f"[ERR] Dropping line (checksum mismatch after parsed-values attempt): expected=0x{fallback_expected:02X}, values={values}")
+                            continue
+                        else:
+                            if DEBUG_TRAIL:
+                                print(f"[CHK] checksum OK via parsed-values fallback -> expected=0x{fallback_expected:02X}, values={values}")
+
+                    # SOLO añadir cuando hay datos válidos
                 if temperatura is not None:
                     eje_x.append(len(eje_x))
                     temperaturas.append(temperatura)
 
                 if humedad is not None:
                     humedades.append(humedad)
+
+                # Print a single clean summary line if requested
+                try:
+                    if CLEAN_OUTPUT:
+                        # Only print when we have relevant data to show (avoid flooding with empty lines)
+                        chk_det = checksum_detected if 'checksum_detected' in locals() else None
+                        chk_ok = checksum_ok if 'checksum_ok' in locals() else None
+                        if (temperatura is not None) or (humedad is not None) or (dist is not None) or pos_updated or (chk_det is True):
+                            print_clean_line(temperatura, humedad, dist, ang, last_posx, last_posy, last_posz, checksum_detected=chk_det, checksum_ok=chk_ok)
+                except Exception as e:
+                    # Always show errors
+                    print(f"[ERR] {e}")
 
 
                 # Consolidar actualizaciones de posición: si hubo cambios de X/Y/Z en esta iteración
@@ -485,7 +732,7 @@ def IniciarComunicacion2():
                 actualiza(posicionx, posiciony, posicionz)
                 actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
-                print("Error:", e)
+                print(f"[ERR] {e}")
         if not running and time.time()%3000 == 1:
             try:
                 eje_x.append()
@@ -495,8 +742,7 @@ def IniciarComunicacion2():
                 actualiza(posicionx, posiciony, posicionz)
                 actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
-                print("Error:", e)
-
+                    print(f"[ERR] {e}")
 # Toggle left graph
 def cambiar_modo_izquierda():
     global Grafica_izquierda
@@ -1164,4 +1410,3 @@ window.protocol("WM_DELETE_WINDOW", cerrar_programa)
 
 # Start tkinter mainloop
 window.mainloop()
-
