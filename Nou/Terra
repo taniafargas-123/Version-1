@@ -1,8 +1,10 @@
 #include <SoftwareSerial.h>
 #define aAmarilla 2
-#define aVerde 4
-#define aRoja 6
-#define aAzul 8
+#define aVerde 3
+#define aRoja 4
+#define aAzul 5
+#define aBlanca 6
+
 
 //LoRa
 SoftwareSerial mySerial(10, 11); // RX, TX 
@@ -11,19 +13,23 @@ SoftwareSerial mySerial(10, 11); // RX, TX
 float temperatura = 0;
 float humedad = 0;
 float dist = 0;
-
+int mediaTemperatura;
 // POSICION 3D
 float posicionX = 0;
 float posicionY = 0;
 float posicionZ = 0;
 
 // ESTADO DE LAS ALARMAS
-bool aDHT = 0;     
-bool aCerca = 0; 
-bool aTiempo = 0;
+bool aDHT = 0; // AMARILLA: falla la lectura de temperatura y humedad durante mass de 5 segundos 
+bool aCerca = 0;  // VERDE: El sensor de ultrasonicos detecta una distancia menor a 10 cm
+bool aTiempo = 0; // ROJA: Falla la lectura LoRa durante mas de 5 segundos
+bool aMedia = 0; // AZUL: Se reciben tres valoresde media de temperatura seguidos por encima de un valor maximo
+bool aUltra = 0; // BLANCA: Si la recepcion de datos del sensor de ultrasonidos falla (funcion leerdistancia da return -1)
+int TemperaturaMaxima = 30; //30ºC
+int mediasSuperiores = 0; // medias de temperatura superiores a la temperatura maxima
 
 // INTERVALOS
-int nextFalloTiempo;
+int nextFalloTiempo = 0;
 int intervalFalloTiempo = 5000; // Tiempo a espera para que se cumpla la condicion de la alarma de tiempo
 
 
@@ -36,6 +42,8 @@ void setup() {
   pinMode(aAmarilla, OUTPUT);
   pinMode(aRoja, OUTPUT);
   pinMode(aVerde, OUTPUT);
+  pinMode(aAzul, OUTPUT);
+  pinMode(aBlanca, OUTPUT);
 }
 
 // =====================================================================================================================
@@ -50,31 +58,52 @@ void setup() {
     String input = mySerial.readStringUntil('\n');
     input.trim();
     Serial.println(input);
-    nextFalloTiempo += millis(); // Se actualiza el periodo de la alarma
+    if (input.startsWith("MED:")) {
+        String mediaStr = input.substring(4); // desde después de "MED:"
+        mediaTemperatura = mediaStr.toInt();
+    }
+    aTiempo = 0;
+    nextFalloTiempo = intervalFalloTiempo + millis(); // Se actualiza el periodo de la alarma
   }
 
   //--------------------------------------------------
   //      2. Condicion de la alarma de tiempo
   //--------------------------------------------------
-  if (millis() > nextFalloTiempo) { //avisa si hay un fallo en un periodo de tiempo
+  if (millis() > nextFalloTiempo) { //avisa si hay un fallo en comunicacion LoRa
     aTiempo = 1;
+  } else {
+    aTiempo = 0;
   }
 
   //--------------------------------------------------
-  //             3. LEDs de cada alarma
+  //      3. Condicion de la alarma de media
+  //--------------------------------------------------
+  if (mediaTemperatura > TemperaturaMaxima){
+    mediasSuperiores++;
+    if (mediasSuperiores > 2){
+      aMedia = 1;
+    }
+  } else {
+    aMedia = 0;
+    mediasSuperiores = 0;
+  }
+
+  //--------------------------------------------------
+  //             4. LEDs de cada alarma
   //--------------------------------------------------
   digitalWrite(aAmarilla, aTiempo == 0 ? LOW : HIGH); // si aTiempo es 0, el estado es LOW, y si es 1, estado HIGH
-  digitalWrite(aRoja,     aDHT == 0    ? LOW : HIGH);
+  digitalWrite(aRoja,     aDHT == 0    ? LOW : HIGH); 
   digitalWrite(aVerde,    aCerca == 0  ? LOW : HIGH);
+  digitalWrite(aAzul,     aMedia == 0  ? LOW : HIGH);
+  digitalWrite(aBlanca,   aUltra == 0  ? LOW : HIGH);
 
 
   //--------------------------------------------------
-  //   4. Comunicacion Python -> Tierra -> Satelite
+  //   5. Comunicacion Python -> Tierra -> Satelite
   //--------------------------------------------------
   if (Serial.available()) {
     String Comandos = Serial.readStringUntil('\n');  // leer de Python
     Comandos.trim();
-    
     mySerial.println(Comandos); // enviar al otro Arduino
   }
 }
