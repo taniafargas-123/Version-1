@@ -9,13 +9,8 @@
 #include <string.h>
 #include <stdio.h>
 
-// ---------------- ENUM SERVOMODE ----------------
-enum ServoMode {
-  MANUAL = 0,   // Quiet fins que Python envia angle
-  RASTREO = 2   // Escaneig 0–180
-};
 
-// - DHT SENSOR --------------------
+// -------------------- DHT SENSOR --------------------
 #define DHTPIN 2
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
@@ -23,8 +18,8 @@ DHT dht(DHTPIN, DHTTYPE);
 // -------------------- SERVO -------------------------
 Servo servoMotor;
 int angulo = 90;
-ServoMode servoMode = MANUAL;   // QUIET PER DEFECTE
-int sentido = 1;
+int aut = 1; // 1: Automatic (Scanning), 0: Manual (Fixed angle via Serial command '5')
+int sentido = 0; // 0: Decrement, 1: Increment
 
 // -------------------- TIMERS ------------------------
 long nextMillis1;
@@ -36,6 +31,10 @@ long interval3 = 5000;
 unsigned long nextImpresion;
 unsigned long nextTimeoutHT;
 int intervaloImpresion = 2000;
+
+// Servo timer for smooth scanning
+unsigned long lastServoMove = 0;
+const int servoSpeed = 15; // Time in ms between each 1-degree step for smooth movement
 
 // -------------------- ORBIT CONSTANTS ----------------
 const double G = 6.67430e-11;
@@ -68,12 +67,7 @@ const int echoPin = 5;
 float duration;
 float distance;
 
-// -------------------- JOYSTICK ------------------------
-int valX = 0;
-int joyX = A0;
-float velMotor = 0;
-
-//nose
+// DHT values
 float t, h;
 
 //Errores
@@ -93,246 +87,271 @@ float mediaTemp = NAN;
 
 // -------------------- SERIAL -------------------------
 String input = "";
-SoftwareSerial mySerial(10, 11);  // RX, TX
+SoftwareSerial mySerial(10, 11);  // RX, TX
+// Before Setup Se crea una funcion para enviar todos los datos de una
 
 
-// -------------------- FUNCIONS ------------------------
 float leerDistancia() {
-  long duracion;
-  float distancia = -1;
+  long duracion;
+  float distancia = -1;
 
-  for (int intento = 0; intento < 3; intento++) {
-    digitalWrite(trigPin, LOW);
-    delayMicroseconds(3);
-    digitalWrite(trigPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
+  for (int intento = 0; intento < 3; intento++) {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(3);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
 
-    duracion = pulseIn(echoPin, HIGH, 30000);
-    if (duracion > 0) {
-      distancia = duracion * 0.0343 / 2.0;
-      if (distancia > 2 && distancia < 400) {
-        return distancia;
-      }
-    }
-  }
-  return -1;
+    duracion = pulseIn(echoPin, HIGH, 30000);
+    if (duracion > 0) {
+      distancia = duracion * 0.0343 / 2.0;
+      if (distancia > 2 && distancia < 400) {
+        return distancia;
+      }
+    }
+  }
+  return -1;
 }
-
+//Funciones checksum
 
 // ======================================================
-//                        SETUP
+//                        SETUP
 // ======================================================
 void setup() {
-  Serial.begin(9600);
-  mySerial.begin(9600);
+  Serial.begin(9600);
+  mySerial.begin(9600);
 
-  nextMillis1 = millis() + interval1;
-  nextMillis2 = millis() + interval2;
-  nextImpresion = millis() + intervaloImpresion;
+  // timers
+  nextMillis1 = millis() + interval1;
+  nextMillis2 = millis() + interval2;
+  nextImpresion = millis() + intervaloImpresion;
 
-  dht.begin();
+  // DHT
+  dht.begin();
 
-  servoMotor.attach(6);
-  servoMotor.write(angulo);
+  // Servo
+  servoMotor.attach(6);
+  servoMotor.write(angulo);
 
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
+  // Ultrasonic
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
 
-  r = R_EARTH + ALTITUDE;
-  real_orbital_period = 2 * PI * sqrt(pow(r, 3) / (G * M));
-  nextUpdate = MILLIS_BETWEEN_UPDATES;
+  // Orbit simulation setup
+  r = R_EARTH + ALTITUDE;
+  real_orbital_period = 2 * PI * sqrt(pow(r, 3) / (G * M));
+  nextUpdate = MILLIS_BETWEEN_UPDATES;
 }
 
-
 // ======================================================
-//                         LOOP
+//                         LOOP
 // ======================================================
 void loop() {
 
-  // --------------------------------------------------
-  //  SENSOR + DATA SENDING
-  // --------------------------------------------------
-  if (Pausa2 == 0 && millis() >= nextMillis1) {
-    h = dht.readHumidity();
-    t = dht.readTemperature();
+  // --------------------------------------------------
+  //  SENSOR + DATA SENDING  every interval1
+  // --------------------------------------------------
+  if (Pausa2 == 0 && millis() >= nextMillis1) {
+    h = dht.readHumidity();
+    t = dht.readTemperature();
 
-    if (isnan(h) || isnan(t)) {
-      esperandoTimeout = true;
-      Serial.print("Error");
-    } else {
-      esperandoTimeout = false;
-      fallo_TyH = 0;
-      nextTimeoutHT = millis() + 5000;
+    if (isnan(h) || isnan(t)) {  // Si H o T son NaN, empieza un temporizador para dar error
+      esperandoTimeout = true;
+      Serial.print("Error");
+    } else {
+      esperandoTimeout = false;
+      fallo_TyH = 0;  // En caso de que el fallo estuviera activo, se desactiva
+      nextTimeoutHT = millis() + 5000;
+      
+      // -------- MEDIA MOVIL CORRECTA --------
+      if (modo_Media_temperatura == 1) {
+        sumaTemp -= bufferTemp[idxTemp];
+        bufferTemp[idxTemp] = t;
+        sumaTemp += t;
 
-      if (modo_Media_temperatura == 1) {
-        sumaTemp -= bufferTemp[idxTemp];
-        bufferTemp[idxTemp] = t;
-        sumaTemp += t;
+        idxTemp = (idxTemp + 1) % N_MEDIA;
+        if (numTemp < N_MEDIA) numTemp++;
 
-        idxTemp = (idxTemp + 1) % N_MEDIA;
-        if (numTemp < N_MEDIA) numTemp++;
+        mediaTemp = sumaTemp / numTemp;
+      }
 
-        mediaTemp = sumaTemp / numTemp;
-      }
+      // media móvil 10 valores
+      if (modo_Media_temperatura == 1) {
 
-      mySerial.print("TEMP:");
-      mySerial.println(t);
-      mySerial.print("HUM:");
-      mySerial.println(h);
+        if (i > 9) {
+          suma = suma + temperaturas[i] - temperaturas[(i - 9)];
+          m = suma / 10.0;
+        } else {
+          suma += temperaturas[i];
+          m = suma / 10.0;
+        }
+      }
+      mySerial.print("TEMP:");
+      mySerial.println(t);  // Se envian T, H, y la media a la estacion de tierra
+      mySerial.print("HUM:");
+      mySerial.println(h);
 
-      if (modo_Media_temperatura == 1) {
-        mySerial.print("MED:");
-        mySerial.println(mediaTemp);
-      } else {
-        mySerial.print("MED:NaN");
-      }
+      if (modo_Media_temperatura == 1) {
+        mySerial.print("MED:");
+        mySerial.println(mediaTemp);
+      } else {
+        mySerial.print("MED:NaN");
+      }
 
-      i++;
-    }
-    nextMillis1 = millis() + interval1;
-  }
+      i++;  // Pasa al siguiente instante de temperatura
+    }
+    nextMillis1 = millis() + interval1;
+  }
 
-  // --------------------------------------------------
-  //      2. Timeout T/H
-  // --------------------------------------------------
-  if (esperandoTimeout && (millis() >= nextTimeoutHT)) {
-    fallo_TyH = 1;
-    mySerial.print("Ar:");
-    mySerial.println(fallo_TyH);
-  } else {
-    fallo_TyH = 0;
-    mySerial.print("Ar:");
-    mySerial.println(fallo_TyH);
-    nextTimeoutHT = millis() + interval1;
-  }
+  //---------------------------------------------------
+  //      2. Activador de alarma de T y H
+  // --------------------------------------------------
+  if (esperandoTimeout && (millis() >= nextTimeoutHT)) {
+    fallo_TyH = 1;  // Aquí sí se activa la alarma
+      
+    mySerial.print("Ar:");
+    mySerial.println(fallo_TyH);
+    
+  } else {
+    fallo_TyH = 0;
+    mySerial.print("Ar:");
+    mySerial.println(fallo_TyH);
+    nextTimeoutHT = millis() + interval1;
+  }                
 
-  // --------------------------------------------------
-  //      3. Orbit simulation
-  // --------------------------------------------------
-  unsigned long currentTime = millis();
-  if (currentTime > nextUpdate) {
-    simulate_orbit(currentTime, 0, 0);
-    nextUpdate = currentTime + MILLIS_BETWEEN_UPDATES;
-  }
+  // --------------------------------------------------
+  //      3. Actualización de simulador de la orbita
+  // --------------------------------------------------
+  unsigned long currentTime = millis();
+  if (currentTime > nextUpdate) {
+    simulate_orbit(currentTime, 0, 0);
+    nextUpdate = currentTime + MILLIS_BETWEEN_UPDATES;
+  }
 
-  // --------------------------------------------------
-  //      4. CONTROL DEL SERVO
-  // --------------------------------------------------
+  // --------------------------------------------------
+  //          4. Lógica del Servomotor
+  // --------------------------------------------------
 
-  if (servoMode == MANUAL) {
-    // Quiet fins que Python enviï un angle
-    angulo = constrain(angulo, 0, 180);
-  }
+  //          4'1. Modo automatico del servo (RASTREO SUAVE)
+  if (aut == 1) {
+    if (millis() - lastServoMove >= servoSpeed) {
+        if (angulo >= 180) sentido = 0; // Cambiar a decrementar
+        else if (angulo <= 0) sentido = 1; // Cambiar a incrementar
 
-  else if (servoMode == RASTREO) {
-    if (angulo >= 180) sentido = 0;
-    if (angulo <= 0) sentido = 1;
-    if (sentido == 0) angulo -= 1;
-    else angulo += 1;
-  }
+        if (sentido == 0) angulo -= 1;
+        else angulo += 1;
 
-  servoMotor.write(angulo);
+        lastServoMove = millis();
+    }
+  }
+  // El modo 'aut = 0' se mantiene en el último ángulo fijado por el modo 'aut = 1'
+  // o por el comando serial '5'.
+  
+  // --------------------------------------------------
+  //                  Mover el Servomotor
+  // --------------------------------------------------
+  servoMotor.write(angulo);
 
-  // --------------------------------------------------
-  //      5. ULTRASONIC
-  // --------------------------------------------------
-  if (Pausa2 == 0 && millis() >= nextMillis2) {
-    distance = leerDistancia();
 
-    mySerial.print("DIST:");
-    mySerial.println(distance);
-    mySerial.print("ANG:");
-    mySerial.println(angulo);
+  // ---- SENSOR ULTRASONICO ----
+  if (Pausa2 == 0 && millis() >= nextMillis2) {
+    distance = leerDistancia();  //Detetca si hay un error y si no envia distancia
+    if (distance == -1) {
+      Serial.println("Lectura ultrasónica inválida");
+      fallo_cerca = 0;  
+      fallo_ultra = 1;
+    } else if (distance < 10) {
+      fallo_cerca = 1;
+      fallo_ultra = 0;
+    } else {
+      fallo_cerca = 0;
+      fallo_ultra = 0;
+    }
+    mySerial.print("DIST:");
+    mySerial.println(distance);
+    mySerial.print("ANG:");
+    mySerial.println(angulo); // Enviar el ángulo real actual del servo
+    
+    // servoMotor.write(angulo); <-- ESTO SE HA ELIMINADO DE AQUÍ
+    
+    nextMillis2 = millis() + interval2;
+  }
 
-    nextMillis2 = millis() + interval2;
-  }
+  if (Pausa2 == 0 && millis() >= nextMillis3) {
+    mySerial.print("X:");
+    mySerial.println(orbX);
+    mySerial.print("Y:");
+    mySerial.println(orbY);
+    nextMillis3 = millis() + interval3;
+  }
 
-  // --------------------------------------------------
-  //      6. ORBIT DATA
-  // --------------------------------------------------
-  if (Pausa2 == 0 && millis() >= nextMillis3) {
-    mySerial.print("X:");
-    mySerial.println(orbX);
-    mySerial.print("Y:");
-    mySerial.println(orbY);
-    nextMillis3 = millis() + interval3;
-  }
+  // --------------------------------------------------
+  //                SERIAL COMMANDS (MEJORADO)
+  // --------------------------------------------------
+  static String rxBuffer = "";
 
-  // --------------------------------------------------
-  //                SERIAL COMMANDS
-  // --------------------------------------------------
-  static String rxBuffer = "";
+  while (mySerial.available()) {
+    char c = mySerial.read();
 
-  while (mySerial.available()) {
-    char c = mySerial.read();
+    if (c == '\n') {
+      rxBuffer.trim();
+      Serial.println("RX: " + rxBuffer);
 
-    if (c == '\n') {
-      rxBuffer.trim();
+      int colon = rxBuffer.indexOf(':');
+      if (colon == -1) {
+        Serial.println("Formato inválido");
+        rxBuffer = "";
+        break;
+      }
 
-      int colon = rxBuffer.indexOf(':');
-      if (colon == -1) {
-        rxBuffer = "";
-        break;
-      }
+      String label = rxBuffer.substring(0, colon);
+      String valueStr = rxBuffer.substring(colon + 1);
+      valueStr.trim();
 
-      String label = rxBuffer.substring(0, colon);
-      String valueStr = rxBuffer.substring(colon + 1);
-      valueStr.trim();
+      // -------------------------------
+      //        SWITCH BY LABEL
+      // -------------------------------
+      if (label == "1") {  // Cambio de modo de transmision (Pausa2)
+        Pausa2 = valueStr.toInt();
+      } else if (label == "2") {  // Cambio de calculador de media (modo_Media_temperatura)
+        modo_Media_temperatura = valueStr.toInt();
+      } else if (label == "AUT") { // Cambio de modo de Servomotor (aut)
+        aut = valueStr.toInt();
+      } else if (label == "5") {  // Angulo insertado manualmente (fija el ángulo y pasa a modo manual/fijo)
+        angulo = constrain(valueStr.toInt(), 0, 180);
+        aut = 0; // Desactiva el modo automático de rastreo
+      } else if (label == "3") {  // Cambio del periodo de envio de temperatura y humedad
+        interval1 = valueStr.toInt() * 1000UL;
+      } else if (label == "4") {  // Cambio del periodo de envio de distancia
+        interval2 = valueStr.toInt() * 1000UL;
+      }
 
-      if (label == "AUT") {
-        int m = valueStr.toInt();
-        if (m == 0) servoMode = MANUAL;
-        else if (m == 2) servoMode = RASTREO;
-      }
-
-      else if (label == "5") {
-        angulo = constrain(valueStr.toInt(), 0, 180);
-      }
-
-      else if (label == "1") {
-        Pausa2 = valueStr.toInt();
-      }
-
-      else if (label == "2") {
-        modo_Media_temperatura = valueStr.toInt();
-      }
-
-      else if (label == "3") {
-        interval1 = valueStr.toInt() * 1000UL;
-      }
-
-      else if (label == "4") {
-        interval2 = valueStr.toInt() * 1000UL;
-      }
-
-      rxBuffer = "";
-    }
-
-    else {
-      rxBuffer += c;
-      if (rxBuffer.length() > 50) rxBuffer = "";
-    }
-  }
+      rxBuffer = "";  // limpiar buffer
+    } else {
+      rxBuffer += c;
+      if (rxBuffer.length() > 50) rxBuffer = "";  // protección overflow
+    }
+  }
 }
 
 
 // ======================================================
-//                  ORBIT SIMULATION FUNC
+//                  ORBIT SIMULATION FUNC
 // ======================================================
-void simulate_orbit(unsigned long millis, double inclination, int ecef) {
-  double time = (millis / 1000) * TIME_COMPRESSION;
-  double angle = 2 * PI * (time / real_orbital_period);
+void simulate_orbit(unsigned long millis, double inclination, int ecef) {  //simula la orbita
 
-  orbX = r * cos(angle);
-  orbY = r * sin(angle) * cos(inclination);
-  orbZ = r * sin(angle) * sin(inclination);
+  double time = (millis / 1000) * TIME_COMPRESSION;
+  double angle = 2 * PI * (time / real_orbital_period);
 
-  if (ecef) {
-    double theta = EARTH_ROTATION_RATE * time;
-    double x_ecef = orbX * cos(theta) - orbY * sin(theta);
-    double y_ecef = orbX * sin(theta) + orbY * cos(theta);
-    orbX = x_ecef;
-    orbY = y_ecef;
-  }
+  orbX = r * cos(angle);
+  orbY = r * sin(angle) * cos(inclination);
+  orbZ = r * sin(angle) * sin(inclination);
+
+  if (ecef) {
+    double theta = EARTH_ROTATION_RATE * time;
+    double x_ecef = orbX * cos(theta) - orbY * sin(theta);
+    double y_ecef = orbX * sin(theta) + orbY * cos(theta);
+    orbX = x_ecef;
+    orbY = y_ecef;
+  }
 }
