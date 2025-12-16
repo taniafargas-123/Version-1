@@ -11,9 +11,8 @@
 
 // ---------------- ENUM SERVOMODE ----------------
 enum ServoMode {
-  MANUAL = 0,
-  AUTO = 1,
-  RASTREO = 2
+  MANUAL = 0,   // Quiet fins que Python envia angle
+  RASTREO = 2   // Escaneig 0–180
 };
 
 // - DHT SENSOR --------------------
@@ -24,7 +23,7 @@ DHT dht(DHTPIN, DHTTYPE);
 // -------------------- SERVO -------------------------
 Servo servoMotor;
 int angulo = 90;
-ServoMode servoMode = AUTO;
+ServoMode servoMode = MANUAL;   // QUIET PER DEFECTE
 int sentido = 1;
 
 // -------------------- TIMERS ------------------------
@@ -220,15 +219,10 @@ void loop() {
   // --------------------------------------------------
   //      4. CONTROL DEL SERVO
   // --------------------------------------------------
-  if (servoMode == MANUAL) {
-    angulo = constrain(angulo, 0, 180);
-  }
 
-  else if (servoMode == AUTO) {
-    if (angulo >= 180) sentido = 0;
-    if (angulo <= 0) sentido = 1;
-    if (sentido == 0) angulo -= 2;
-    else angulo += 2;
+  if (servoMode == MANUAL) {
+    // Quiet fins que Python enviï un angle
+    angulo = constrain(angulo, 0, 180);
   }
 
   else if (servoMode == RASTREO) {
@@ -245,13 +239,6 @@ void loop() {
   // --------------------------------------------------
   if (Pausa2 == 0 && millis() >= nextMillis2) {
     distance = leerDistancia();
-    if (distance == -1) {
-      fallo_ultra = 1;
-    } else if (distance < 10) {
-      fallo_cerca = 1;
-    } else {
-      fallo_cerca = 0;
-    }
 
     mySerial.print("DIST:");
     mySerial.println(distance);
@@ -282,7 +269,6 @@ void loop() {
 
     if (c == '\n') {
       rxBuffer.trim();
-      Serial.println("RX: " + rxBuffer);
 
       int colon = rxBuffer.indexOf(':');
       if (colon == -1) {
@@ -294,25 +280,36 @@ void loop() {
       String valueStr = rxBuffer.substring(colon + 1);
       valueStr.trim();
 
-      if (label == "1") {
-        Pausa2 = valueStr.toInt();
-      } else if (label == "2") {
-        modo_Media_temperatura = valueStr.toInt();
-      } else if (label == "AUT") {
+      if (label == "AUT") {
         int m = valueStr.toInt();
         if (m == 0) servoMode = MANUAL;
-        else if (m == 1) servoMode = AUTO;
         else if (m == 2) servoMode = RASTREO;
-      } else if (label == "5") {
+      }
+
+      else if (label == "5") {
         angulo = constrain(valueStr.toInt(), 0, 180);
-      } else if (label == "3") {
+      }
+
+      else if (label == "1") {
+        Pausa2 = valueStr.toInt();
+      }
+
+      else if (label == "2") {
+        modo_Media_temperatura = valueStr.toInt();
+      }
+
+      else if (label == "3") {
         interval1 = valueStr.toInt() * 1000UL;
-      } else if (label == "4") {
+      }
+
+      else if (label == "4") {
         interval2 = valueStr.toInt() * 1000UL;
       }
 
       rxBuffer = "";
-    } else {
+    }
+
+    else {
       rxBuffer += c;
       if (rxBuffer.length() > 50) rxBuffer = "";
     }
