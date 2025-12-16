@@ -7,17 +7,17 @@ Aquest projecte és el nostre viatge a l’espai: creem el prototip funcional d�
 
 ---
 
-## 🛰️ El Satèl·lit  
+## El Satèl·lit  
 El nostre satèl·lit està impulsat per un **Arduino** que recull dades de temperatura, humitat i proximitat, i pot orientar sensors mitjançant servomotors. Processa la informació, envia missatges a terra i respon a ordres del usuari. Tot està programat en **C**.
 
 ---
 
-## 🌍 L’Estació de Terra  
+## L’Estació de Terra  
 Format per un altre Arduino i un portàtil, aquest sistema rep i processa les dades enviades des del satèl·lit, activa alarmes i les mostra mitjançant una interfície gràfica creada en **Python**. També permet enviar ordres al satèl·lit, com modificar la freqüència d’enviament o orientar sensors.
 
 ---
 
-## 📡 Comunicació  
+## Comunicació  
 La comunicació entre satèl·lit i terra utilitza **LoRa** per transmissions de llarg abast, tot i que durant el desenvolupament també s’ha treballat amb connexió per cable per evitar interferències.
 
 ---
