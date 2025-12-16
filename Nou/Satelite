@@ -77,8 +77,6 @@ bool esperandoTimeout = true;
 bool fallo_TyH = 0;
 bool fallo_tiempo = 0;
 bool fallo_cerca = 0;
-bool fallo_ultra1 = 0;
-
 //Temperaturas_media
 #define N_MEDIA 10
 float bufferTemp[N_MEDIA];
@@ -96,6 +94,7 @@ SoftwareSerial mySerial(10, 11); // RX, TX
 float leerDistancia() {
     long duracion;
     float distancia = -1;
+
     for (int intento = 0; intento < 3; intento++) {
         digitalWrite(trigPin, LOW);
         delayMicroseconds(3);
@@ -110,9 +109,12 @@ float leerDistancia() {
                 return distancia;
             }
         }
+        delay(20);
     }
-    return -1;  // error claro y consistente
+    return -1;
 }
+
+int q = 0;
 //Funciones checksum//
 
 // ======================================================
