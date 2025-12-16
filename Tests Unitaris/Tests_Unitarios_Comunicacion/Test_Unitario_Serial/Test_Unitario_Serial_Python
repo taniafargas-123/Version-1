@@ -1,1 +1,21 @@
+import serial
 
+device = 'COM3'      
+MENSAJE = "Hola Arduino"
+Serial = serial.Serial(device, 9600, timeout=2)
+
+try:
+    Serial.write((MENSAJE + "\n").encode('utf-8'))
+    print("Mensaje enviado")
+    respuesta = Serial.readline().decode('utf-8').strip()
+    if respuesta.startswith("OK"):
+        print("Confirmación recibida:", respuesta)
+        print("ENVIO CORRECTO")
+    else:
+        print("FALLO DE COMUNICACION")
+except serial.SerialException as e:
+    print("ERROR", e)
+
+finally:
+    if 'Serial' in locals() and Serial.is_open:
+        Serial.close()
