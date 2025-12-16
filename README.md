@@ -36,8 +36,13 @@ Link del video demostratiu: https://drive.google.com/file/d/1L44LO0Di6GdR4LK3FuM
 
 ### **Versió 3**  
 El satèl·lit adquireix una capacitat clau: determinar i comunicar la seva posició exacta en òrbita. Aquesta informació s’uneix a la resta de dades i s’envia a terra, on l’usuari pot visualitzar la trajectòria sobre mapes intuïtius i gestionar-ho tot des d’una interfície gràfica potent i fàcil d’utilitzar. A més, la plataforma emmagatzema i recupera dades sempre que calgui, convertint el sistema en una eina útil per monitorar i entendre el comportament del satèl·lit.
+
 Link del video demostratiu: https://drive.google.com/file/d/1-j9wdUP3bScsias9G_AwwVxJ__L_HbMh/view?usp=sharing
 
+### **Versió 4**  
+En aquesta etapa final del projecte, ens hem concentrat en la consolidació i refinament de totes les funcionalitats desenvolupades anteriorment, assegurant una operació robusta i fiable del sistema. El nostre satèl·lit ara imita l'estructura d'un CubeSat. També, pensant en l'accessibilitat i l'adopció global, hem implementat la traducció de la interfície de visualització de dades a 6 idiomes diferents, una característica clau que fa que la plataforma d'estació de terra sigui adaptable i fàcilment utilitzable per a operadors i investigadors de tot el món, garantint que les dades i gràfiques siguin plenament comprensibles sense barreres lingüístiques.
+
+Link del video demostratiu: 
 
 ---
 
