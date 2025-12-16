@@ -296,7 +296,7 @@ def nada():
 
 def Enter_pressed(event=None):
     """Parse user text for 'periodo temperatura N' or 'periodo distancia N' (fuzzy)."""
-    global periodo_temp, periodo_dist
+    global periodo_temp, periodo_dist,angulo
     user_text = Texto.get().strip()
     
         # --- OBSERVACIONES DEL USUARIO ---
@@ -315,7 +315,7 @@ def Enter_pressed(event=None):
         Texto.delete(0, "end")
         return
 
-    comandos = ["periodo temperatura", "periodo distancia"]
+    comandos = ["periodo temperatura", "periodo distancia","Angulo"]
     match = difflib.get_close_matches(user_lower, comandos, n=1, cutoff=0.4)
     if match:
         cmd = match[0]
@@ -335,6 +335,15 @@ def Enter_pressed(event=None):
                 try:
                     mySerial.write(str('4:'+str(numero)).encode())
                     registrar_evento("comando", f"Periodo de distancia cambiado a {periodo_dist}")
+                except Exception as e:
+                    print("Serial write error:", e)
+        elif cmd == "Angulo":
+            angulo = numero
+            print('5:'+str(numero))
+            if mySerial:
+                try:
+                    mySerial.write(str('5:'+str(numero)).encode())
+                    registrar_evento("comando", f"Angulo cambiado a {angulo}")
                 except Exception as e:
                     print("Serial write error:", e)
     else:
