@@ -157,7 +157,7 @@ def registrar_evento(tipo, descripcion): # Registra un evento en el archivo even
     tipo: 'comando', 'alarma', 'observacion'
     descripcion: texto libre
     """
-    if tipo not in TIPOS_EVENTO:
+    if tipo not in TIPOS_EVENTO: # Si tipo de evento no se reconoce, avisa
         print(f"[WARN] Tipo de evento desconocido: {tipo}")
         return
 
@@ -214,11 +214,11 @@ def abrir_ventana_eventos(): # Abre una ventana para mostrar y filtrar eventos
     frame_filtros = Frame(vent)
     frame_filtros.pack(fill="x", padx=5, pady=5)
 
-    Label(frame_filtros, text="Día (dd-mm-aaaa):").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+    Label(frame_filtros, text="Día (dd-mm-aaaa):").grid(row=0, column=0, padx=5, pady=2, sticky="w") # Filtro por día
     entry_dia = Entry(frame_filtros, width=12)
     entry_dia.grid(row=0, column=1, padx=5, pady=2, sticky="w")
 
-    Label(frame_filtros, text="Tipo:").grid(row=0, column=2, padx=5, pady=2, sticky="w")
+    Label(frame_filtros, text="Tipo:").grid(row=0, column=2, padx=5, pady=2, sticky="w") # Filtro por tipo de evento
     tipo_var = StringVar(frame_filtros)
     tipo_var.set("todos")
     opciones_tipo = ["todos"] + TIPOS_EVENTO
@@ -229,7 +229,7 @@ def abrir_ventana_eventos(): # Abre una ventana para mostrar y filtrar eventos
     text = Text(vent, wrap="word")
     text.pack(fill="both", expand=True, padx=5, pady=5)
 
-    scrollbar = Scrollbar(text, command=text.yview)
+    scrollbar = Scrollbar(text, command=text.yview) # Barra de desplazamiento
     scrollbar.pack(side="right", fill="y")
     text.configure(yscrollcommand=scrollbar.set)
 
@@ -237,21 +237,21 @@ def abrir_ventana_eventos(): # Abre una ventana para mostrar y filtrar eventos
         # Recargar SIEMPRE desde archivo
         eventos = cargar_eventos()
 
-        dia_filtro = entry_dia.get().strip()
+        dia_filtro = entry_dia.get().strip() # Obtener día de filtro
         dia_filtro = dia_filtro if dia_filtro else None
 
-        tipo_filtro = tipo_var.get()
+        tipo_filtro = tipo_var.get() # Obtener tipo de filtro
         if tipo_filtro == "todos":
             tipo_filtro = None
 
         ev_filtrados = filtrar_eventos(eventos, dia=dia_filtro, tipo=tipo_filtro)
 
         text.delete("1.0", END)
-        if not ev_filtrados:
+        if not ev_filtrados: # No hay eventos para este filtro
             text.insert(END, "No hay eventos para este filtro.\n")
             return
 
-        for e in ev_filtrados:
+        for e in ev_filtrados: # Mostrar eventos filtrados
             linea = f"{e['dia']} {e['hora']} [{e['tipo']}] {e['descripcion']}\n"
             text.insert(END, linea)
 
@@ -315,7 +315,7 @@ def Enter_pressed(event=None): # Permite al usuario introducir comandos de texto
         Texto.delete(0, "end")
         return
     
-    user_lower = user_text = Texto.get().lower().strip()
+    user_lower = user_text = Texto.get().lower().strip() # Texto en minúsculas para comparación
     numeros = re.findall(r"\d+", user_text)
     numero = int(numeros[0]) if numeros else None
     if numero is None:
@@ -399,12 +399,12 @@ def Comprueva(frase,respuesta): # Comprueba si el checksum del mensaje coincide 
 def IniciarComunicacion2(): # Hilo de recepción de datos seriales
     print("Iniciado")
     global i, ventana_abierta, distancies, punt, linea, j, buffer_temp, Temperatura_media, last_posx, last_posy, last_posz, last_posx_updated, last_posy_updated, last_posz_updated
-    Temperatura_media = np.nan
-    angtemp = None
+    Temperatura_media = np.nan # Inicializa la temperatura media como NaN
+    angtemp = None 
     disttemp = None
     while ventana_abierta:
-        if running and mySerial.in_waiting > 0:
-            temperatura = None
+        if running and mySerial.in_waiting > 0: 
+            temperatura = None # Inicializa variables de datos
             humedad = None
             dist = None
             ang = None
@@ -417,7 +417,7 @@ def IniciarComunicacion2(): # Hilo de recepción de datos seriales
                 line_bytes = mySerial.readline()
                 if not line_bytes:
                     continue
-                stripped = line_bytes.rstrip(b"\r\n")
+                stripped = line_bytes.rstrip(b"\r\n") # Elimina saltos de línea y retornos de carro
                 checksum_ok = None
                 checksum_detected = False
                 checksum_failed_raw = False
@@ -438,20 +438,20 @@ def IniciarComunicacion2(): # Hilo de recepción de datos seriales
                 if star_idx != -1 and star_idx < len(stripped)-1: 
                     suffix = stripped[star_idx+1:]
                     try:
-                        expected = int(suffix.decode('ascii'), 16)
-                        csum = sum(stripped[:star_idx]) % 256
+                        expected = int(suffix.decode('ascii'), 16) # Convierte el sufijo hexadecimal a entero
+                        csum = sum(stripped[:star_idx]) % 256 # Calcula checksum sumando bytes antes del '*'
                         checksum_detected = True
                         fallback_expected = expected
-                        if csum == expected:
+                        if csum == expected: # Verifica si coincide
                             checksum_ok = True
                             data_bytes = stripped[:star_idx]
                             if DEBUG_TRAIL:
-                                print(f"[CHK] hex csum OK: computed=0x{csum:02X} suffix=0x{expected:02X}")
-                        else:
+                                print(f"[CHK] hex csum OK: computed=0x{csum:02X} suffix=0x{expected:02X}") # Muestra info debug
+                        else: # No coincide
                             checksum_ok = False
                             checksum_failed_raw = True
                             if DEBUG_TRAIL:
-                                print(f"[CHK] hex csum FAIL: computed=0x{csum:02X} suffix=0x{expected:02X}")
+                                print(f"[CHK] hex csum FAIL: computed=0x{csum:02X} suffix=0x{expected:02X}") # Muestra info debug
                     except Exception:
                         # Not a valid hex suffix
                         checksum_detected = False
@@ -465,10 +465,10 @@ def IniciarComunicacion2(): # Hilo de recepción de datos seriales
                         checksum_detected = True
                         fallback_expected = last_byte
                         try:
-                            csum_sum = sum(candidate) % 256
+                            csum_sum = sum(candidate) % 256 # Suma simple de bytes
                             if csum_sum == last_byte:
                                 checksum_ok = True
-                                data_bytes = candidate
+                                data_bytes = candidate 
                                 if DEBUG_TRAIL:
                                     print(f"[CHK] binary sum csum OK: computed=0x{csum_sum:02X} last_byte=0x{last_byte:02X}")
                                 else:
@@ -515,7 +515,7 @@ def IniciarComunicacion2(): # Hilo de recepción de datos seriales
 
                 # 1) Intentar forma Position: (X: ..., Y: ..., Z: ...)
                 mpos = regex_position.match(linea)
-                if mpos:
+                if mpos: # Coincide con formato Position
                     try:
                         px = float(mpos.group(1))
                         py = float(mpos.group(2))
@@ -553,7 +553,7 @@ def IniciarComunicacion2(): # Hilo de recepción de datos seriales
                         # Asignar valores según prefijo
                     if prefijo == 'TEMP':
                         temperatura = valor_num
-                        j = j + 1
+                        j = j + 1 # Contador de muestras de temperatura
                     elif prefijo == 'HUM':
                         humedad = valor_num
                     elif prefijo == 'DIST':
@@ -614,7 +614,7 @@ def IniciarComunicacion2(): # Hilo de recepción de datos seriales
                             values = []
                             for nm in ('temperatura', 'humedad', 'dist', 'ang', 'last_posx', 'last_posy', 'last_posz'):
                                 try:
-                                    v = locals().get(nm)
+                                    v = locals().get(nm) # Obtener valor local (para _fmt)
                                 except Exception:
                                     v = None
                                 if v is not None:
@@ -684,7 +684,7 @@ def IniciarComunicacion2(): # Hilo de recepción de datos seriales
                         if last_posz is not None:
                             z_val = last_posz
                         else:
-                            z_val = orbit_trail_3d[-1][2] if len(orbit_trail_3d) > 0 and orbit_trail_3d[-1][2] is not None else 0.0
+                            z_val = orbit_trail_3d[-1][2] if len(orbit_trail_3d) > 0 and orbit_trail_3d[-1][2] is not None else 0.0 # Fallback z=0.0
 
                         posicionx_vals.append(last_posx)
                         posiciony_vals.append(last_posy)
@@ -986,7 +986,6 @@ TRANSLATIONS = { # Diccionarios de traducción para cada idioma
 }
 
 def update_texts(): # Actualiza los textos de todos los elementos de la interfaz según el idioma actual
-    """Apply translations for current Idioma to all UI widgets (call after UI created)."""
     t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
     try:
         # Actualizar ventana título
@@ -1159,15 +1158,15 @@ def actualizar_grafica(x):
     t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
     ax.clear()
     if Grafica_izquierda == "Temperatura": # Modo temperatura
-        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 50))
-        n = min(len(eje_x), len(temperaturas))
+        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 50)) # Ajustar límites
+        n = min(len(eje_x), len(temperaturas)) # Evitar error si hay menos datos que muestras
         ax.plot(eje_x[:n], temperaturas[:n], label=t["temp_ylabel"])
-        n2 = min(len(eje_x), len(temperaturas_medias))
+        n2 = min(len(eje_x), len(temperaturas_medias)) # Evitar error si hay menos datos que muestras
         ax.plot(eje_x[:n2], temperaturas_medias[:n2], label="Media temperaturas")
         ax.set_ylabel(t["temp_ylabel"])
         ax.set_title(t["temp_plot_title"])
     else: # Modo humedad
-        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 100))
+        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 100)) # Ajustar límites
         ax.plot(eje_x, humedades, label=t["hum_ylabel"])
         ax.set_ylabel(t["hum_ylabel"])
         ax.set_title(t["hum_plot_title"])
@@ -1243,7 +1242,7 @@ def actualiza_grafica_3d():
         ax_3d.set_xlim([-lim, lim])
         ax_3d.set_ylim([-lim, lim])
         ax_3d.set_zlim([-lim, lim])
-        ax_3d.set_xlabel(t["x_label"])
+        ax_3d.set_xlabel(t["x_label"]) # Etiqueta ejes
         ax_3d.set_ylabel(t["y_label"])
         ax_3d.set_zlabel(t["z_label"])
         ax_3d.set_title(t["3d_title"])
@@ -1399,7 +1398,7 @@ ReanudarButton = Button(frame_botones, text="Reanudar", bg='lightyellow', fg="bl
 cambiarButtonizquierda = Button(frame_botones, text="Mostrar Humedad", bg='lightgreen', fg="black", command=cambiar_modo_izquierda, **boton_style)
 cambiarmediaButton = Button(frame_botones, text="Media Sat", bg='lightyellow', fg="black", command=cambiar_modomedia, **boton_style)
 
-IniciarButton.grid(row=0, column=0, padx=5, pady=5)
+IniciarButton.grid(row=0, column=0, padx=5, pady=5) #--- Posicionamiento de botones ---
 PararButton.grid(row=1, column=0, padx=5, pady=5)
 ReanudarButton.grid(row=2, column=0, padx=5, pady=5)
 cambiarButtonizquierda.grid(row=3, column=0, padx=5, pady=5)
@@ -1414,7 +1413,7 @@ IdiomaButton = Button(frame_botones_dos, text=LANGUAGES[next_idx], bg='lightblue
 AutomaticButton = Button(frame_botones_dos, text="Manual", bg='lightblue', fg='black', command=automatic, **boton_style)
 VerEventosButton = Button(frame_botones, text="Ver eventos", bg='lavender', fg="black",command=abrir_ventana_eventos, **boton_style)
 
-PararButtonPolar.grid(row=0, column=0, padx=5, pady=5)
+PararButtonPolar.grid(row=0, column=0, padx=5, pady=5) #--- Posicionamiento de botones ---
 ReanudarButtonPolar.grid(row=1, column=0, padx=5, pady=5)
 cambiarButtonderecha.grid(row=2, column=0, padx=5, pady=5)
 IdiomaButton.grid(row=3, column=0, padx=5, pady=5)
@@ -1433,12 +1432,12 @@ fig_polar = matplotlib.figure.Figure(figsize=(5, 3), tight_layout=True)
 # Crear ambos ejes: polar y cartesiano
 polar_ax = fig_polar.add_subplot(1,1,1, polar=True)
 cart_ax = fig_polar.add_subplot(1,1,1, polar=False, frame_on=True)  
-polar_ax.set_theta_zero_location("E")
+polar_ax.set_theta_zero_location("E") # 0 grados en el este
 polar_ax.set_theta_direction(1)
-polar_ax.set_thetalim(0, np.pi)
-polar_ax_rmax = 50
+polar_ax.set_thetalim(0, np.pi) # Limitar ángulo de 0 a 180 grados
+polar_ax_rmax = 50 # Máxima distancia del radar
 polar_ax.set_rmax(polar_ax_rmax)
-polar_ax.set_rticks([10,20,30,40,50])
+polar_ax.set_rticks([10,20,30,40,50]) # Etiquetas radiales
 polar_ax.set_rlabel_position(180)
 polar_ax.set_title("Radar de Ultrasonidos", va='bottom')
 
