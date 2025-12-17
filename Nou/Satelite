@@ -54,7 +54,7 @@ double orbZ = 0;
 int Pausa2 = 1;
 int Pausa3 = 1;
 int modo_Media_temperatura = 0;
-float maximo_temp =99999;
+float maximo_temp =30;
 int contador;
 float temperaturas[100];
 float suma = 0;
@@ -81,6 +81,7 @@ bool fallo_TyH = 0;
 bool fallo_tiempo = 0;
 bool fallo_cerca = 0;
 bool fallo_ultra = 0;
+bool Ar = 0;
 
 //Temperaturas_media
 #define N_MEDIA 10
@@ -142,6 +143,8 @@ void setup() {
   r = R_EARTH + ALTITUDE;
   real_orbital_period = 2 * PI * sqrt(pow(r, 3) / (G * M));
   nextUpdate = MILLIS_BETWEEN_UPDATES;
+
+  mySerial.print("Ar:0");
 }
 
 
@@ -158,12 +161,10 @@ void loop() {
     t = dht.readTemperature();
 
     if (isnan(h) || isnan(t)) {
-      esperandoTimeout = true;
-      mySerial.print("Ar:1");
+      fallo_TyH = true;
     } else {
-      esperandoTimeout = false;
+      fallo_TyH = false;
       nextTimeoutHT = millis() + 5000;
-
       if (modo_Media_temperatura == 1) {
         sumaTemp -= bufferTemp[idxTemp];
         bufferTemp[idxTemp] = t;
@@ -178,9 +179,10 @@ void loop() {
             if (contador>=3){
                 mySerial.print("Aa:1");
             }
-        else {
+          else {
             contador=0;
-        }
+            mySerial.print("Aa:0");
+          }
         }
       }
 
@@ -198,8 +200,14 @@ void loop() {
 
       i++;
     }
+    if (fallo_TyH == true && millis()>nextTimeoutHT){
+        mySerial.print("Ar:1");
+        Ar = 1;
+      } else if (Ar == 1 && fallo_TyH == false){
+        Ar = 0;
+        mySerial.print("Ar:0");
+      }
     nextMillis1 = millis() + interval1;
-
   }
 
 
