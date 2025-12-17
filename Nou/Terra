@@ -66,9 +66,22 @@ void setup() {
         String alarmaroja = input.substring(3);
         aDHT = alarmaroja.toInt();
     }
-
-    aTiempo = 0;
-    nextFalloTiempo = intervalFalloTiempo + millis(); // Se actualiza el periodo de la alarma
+    if (input.startsWith("Aa:")){
+        String alarmaAzul = input.substring(3);
+        aMedia = alarmaAzul.toInt();
+    }
+    if (input.startsWith("Av:")){
+        String alarmaVerde = input.substring(3);
+        aCerca = alarmaVerde.toInt();
+    }
+    if (input.startsWith("Ab:")){
+        String alarmaBlanca = input.substring(3);
+        aUltra = alarmaBlanca.toInt();
+    }
+    //que no sea  nada if ()){
+      aTiempo = 0;
+      nextFalloTiempo = intervalFalloTiempo + millis(); // Se actualiza el periodo de la alarma
+  
   }
 
   //--------------------------------------------------
@@ -81,15 +94,7 @@ void setup() {
   //--------------------------------------------------
   //      3. Condicion de la alarma de media
   //--------------------------------------------------
-  if (mediaTemperatura > TemperaturaMaxima){
-    mediasSuperiores++;
-    if (mediasSuperiores > 2){
-      aMedia = 1;
-    }
-  } else {
-    aMedia = 0;
-    mediasSuperiores = 0;
-  }
+
 
   //--------------------------------------------------
   //             4. LEDs de cada alarma
@@ -107,6 +112,10 @@ void setup() {
   if (Serial.available()) {
     String Comandos = Serial.readStringUntil('\n');  // leer de Python
     Comandos.trim();
+        if (Comandos.startsWith("7:")){
+        String alarmaAzul = Comandos.substring(2);
+        aMedia = alarmaAzul.toInt();
+    }
     mySerial.println(Comandos); // enviar al otro Arduino
   }
 }
