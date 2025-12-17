@@ -867,7 +867,10 @@ TRANSLATIONS = {
         "3d_title": "Órbita Satélite 3D (Matplotlib)",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instrucciones",
+        "info_text": "En la caja blanca de texto, puedes introducir:\n\n • El período en el que se envían los datos de temperatura y distancia.\n\n • El ángulo que quieres que gire el satélite.\n\n • Una temperatura máxima (la alarma azul sonará si se supera 3 veces). \n\n • Un comentario que aparece en el registro de eventos \n\n Según el dato que introduzcas, deberás escribir antes los respectivos comandos seguidos por un espacio:\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
+
     },
     "Catala": {
         "title": "Monitor Serial",
@@ -900,7 +903,9 @@ TRANSLATIONS = {
         "3d_title": "Òrbita Satèl·lit 3D (Matplotlib)",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instruccions",
+        "info_text": "A la capsa blanca de text, pots introduir:\n\n • El període en què s'envien les dades de temperatura i distància.\n\n • L'angle que vols que giri el satèl·lit.\n\n • Una temperatura màxima (l'alarma blava sonarà si se supera 3 cops). \n\n • Un comentari que surt al registre d'events \n\n Segons la dada que introdueixis, hauràs d'escriure abans els comandos respectius seguits per un espai: \n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "English": {
         "title": "Serial Monitor",
@@ -933,7 +938,9 @@ TRANSLATIONS = {
         "3d_title": "Satellite Orbit 3D (Matplotlib)",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instructions",
+        "info_text": "In the white box above, you can enter:\n\n • The period in which the temperature and distance data are sent.\n\n • The angle you want the satellite to rotate.\n\n • A maximum temperature (the blue alarm will sound if it is exceeded 3 times). \n\n • A comment that appears in the event log \n\n Depending on the data you enter, you will have to write the respective commands first followed by a space:\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "中文": {
         "title": "串口监视器",
@@ -966,7 +973,9 @@ TRANSLATIONS = {
         "3d_title": "卫星轨道 3D (Matplotlib)",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"說明",
+        "info_text": "在下面的白色框中，您可以輸入：\n\n • 發送溫度和距離資料的週期。 \n\n • 衛星旋轉角度。 \n\n • 最高溫度（如果超過最高溫度 3 次，將發出藍色警報）。 \n\n • 事件日誌中顯示的註解。 \n\n 根據您輸入的數據，您需要先輸入相應的命令，然後輸入一個空格：\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "Français": {
         "title": "Moniteur Série",
@@ -999,7 +1008,9 @@ TRANSLATIONS = {
         "3d_title": "Orbite Satellite 3D (Matplotlib)",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instructions",
+        "info_text":"Dans la zone blanche, vous pouvez saisir:\n\n • La période d'envoi des données de température et de distance.\n\n • L'angle de rotation souhaité pour le satellite.\n\n • Une température maximale (l'alarme bleue retentira si elle est dépassée 3 fois).\n\n • Un commentaire qui apparaîtra dans le journal des événements.\n\n Selon les données saisies, vous devrez d'abord écrire les commandes correspondantes, suivies d'un espace:\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "Deutsch": {
         "title": "Seriellmonitor",
@@ -1033,6 +1044,8 @@ TRANSLATIONS = {
         "x_label": "X (m)",
         "y_label": "Y (m)",
         "z_label": "Z (m)"
+        "info_title":"Anleitung",
+        "info_text":"Im weißen Feld unten können Sie Folgendes eingeben: \n\n • Den Zeitraum, in dem die Temperatur- und Entfernungsdaten gesendet werden.\n\n • Den gewünschten Drehwinkel des Satelliten.\n\n • Eine maximale Temperatur (der blaue Alarm ertönt, wenn diese dreimal überschritten wird). \n\n • Einen Kommentar, der im Ereignisprotokoll erscheint.\n\n Je nach den eingegebenen Daten müssen Sie zuerst die entsprechenden Befehle und anschließend ein Leerzeichen eingeben.\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     }
 }
 
@@ -1055,6 +1068,9 @@ def update_texts():
         PararButtonPolar.config(text=t["stop"])
         ReanudarButtonPolar.config(text=t["resume"])
         VerEventosButton.config(text=t["view_events"])
+        frame_info.config(text=t["info_title"])
+        lbl_info.config(text=t["info_text"])
+
         # left toggle button text depends on current graph mode
         if Grafica_izquierda == "Temperatura":
             cambiarButtonizquierda.config(text=t["show_humidity"])
@@ -1496,6 +1512,17 @@ ax_3d = fig_3d.add_subplot(111, projection='3d')
 canvas_3d = FigureCanvasTkAgg(fig_3d, master=frame_grafica_3d)
 canvas_3d.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
+frame_info = LabelFrame(window, bg="white", bd=2, text="Instrucciones:", font=("Arial", 11))
+frame_info.grid(row=3, column=3, padx=10, pady=10, sticky="nsew")
+
+text_informatiu = "En la caja blanca de debajo de todo, puedes introducir:\n\n • El período en el que se envían los datos de temperatura y distancia.\n\n • El ángulo que quieres que gire el satélite.\n\n • Una temperatura máxima (la alarma azul sonará si se supera 3 veces). \n\n • Un comentario que aparece en el registro de eventos \n\n Según el dato que introduzcas, deberás escribir antes los respectivos comandos seguidos por un espacio: \n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
+lbl_info = Label(frame_info, text=text_informatiu, bg="light pink", font=("Arial", 12), justify="center", anchor="nw", wraplength=250)
+lbl_info.pack(padx=15, pady=15, fill="both", expand=True)
+
+window.columnconfigure(0, weight=1)
+window.columnconfigure(1, weight=1)
+window.columnconfigure(2, weight=1)
+window.columnconfigure(3, weight=0) # La capseta de text no s'estira tant com gràfica
 # Llamada inicial para establecer los límites del eje 3D
 actualiza_grafica_3d()
 update_texts()
