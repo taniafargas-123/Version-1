@@ -277,7 +277,7 @@ def Parar():
     if mySerial:
         try:
             mySerial.write(b'1:1')
-            registrar_evento("comando", "Parar transmisión de datos")
+            registrar_evento("comando", "Parar transmisión de datos parar temperatura")
         except Exception as e:
             print("Serial write error:", e)
     running = False
@@ -288,14 +288,29 @@ def Reanudar():
     if mySerial:
         try:
             mySerial.write(b'1:0')
-            registrar_evento("comando", "Reanudar transmisión de datos")
+            registrar_evento("comando", "Reanudar transmisión de datos para temperatura")
         except Exception as e:
             print("Serial write error:", e)
     running = True
     print("▶ Comunicación reanudada")
 
-def nada():
-    print('3:'+periodo_temp)
+def ReanudarDist():
+    global running
+    if mySerial:
+        try:
+            mySerial.write(b'1:2')
+            registrar_evento("comando", "Reanudar transmisión de datos para distancia")
+        except Exception as e:
+            print("Serial write error:", e)
+    
+def PararDist():
+    global running
+    if mySerial:
+        try:
+            mySerial.write(b'1:3')
+            registrar_evento("comando", "Parar transmisión de datos para distancia")
+        except Exception as e:
+            print("Serial write error:", e)
     
 def automatic():
     global Automatico
@@ -388,7 +403,7 @@ def IniciarComunicacion():
     running = True
     if mySerial:
         try:
-            mySerial.write(b'1:0')
+            mySerial.write(b'1:4')
         except Exception as e:
             print("Serial write error:", e)
     threadRecepcion = threading.Thread(target=IniciarComunicacion2, daemon=True)
@@ -415,6 +430,8 @@ def IniciarComunicacion2():
     print("Iniciado")
     global i, ventana_abierta, distancies, punt, linea, j, buffer_temp, Temperatura_media, last_posx, last_posy, last_posz, last_posx_updated, last_posy_updated, last_posz_updated
     Temperatura_media = np.nan
+    angtemp = None
+    disttemp = None
     while ventana_abierta:
         if running and mySerial.in_waiting > 0:
             temperatura = None
@@ -591,6 +608,7 @@ def IniciarComunicacion2():
                         dist = valor_num
                     elif prefijo == 'ANG':
                         ang = valor_num
+                        print("1")
                         print(ang)
                     elif prefijo == 'X':
                         posicionx = valor_num
@@ -737,16 +755,22 @@ def IniciarComunicacion2():
 
 
                 # SOLO actualizar radar si ambos existen
-                if ang is not None and dist is not None:
-                    if 0 <= ang <= 180:
-                        idx = int(round(ang))
-                        distancies[idx] = dist
+                if ang is not None:
+                    angtemp = ang
+                if dist is not None:
+                    disttemp = dist
+                if angtemp is not None and disttemp is not None:
+                    if 0 <= angtemp <= 180:
+
+                        idx = int(round(angtemp))
+                        distancies[idx] = disttemp
 
                         theta_rad = np.radians(idx)
-                        punt = ([theta_rad], [dist])
-
-                        # beam
-                        beam_polar.set_data([theta_rad, theta_rad], [0, dist])
+                        punt = ([theta_rad], [disttemp])
+                        
+                        beam_polar.set_data([theta_rad, theta_rad], [0, disttemp])
+                        disttemp = None
+                        angtemp = None
 
                 if temperatura is not None:
                     if modo_Media_temperatura == 0:
@@ -1074,8 +1098,6 @@ def update_texts():
         ax.set_xlabel(t["samples_xlabel"])
         # update polar/cart legend labels
         try:
-            linea_polar.set_label(t["dist_label"])
-            beam_polar.set_label(t["beam_label"])
             punt_polar.set_label(t["current_point"])
             polar_ax.legend()
         except Exception:
@@ -1376,8 +1398,8 @@ ReanudarButton.grid(row=2, column=0, padx=5, pady=5)
 cambiarButtonizquierda.grid(row=3, column=0, padx=5, pady=5)
 cambiarmediaButton.grid(row=4, column=0, padx=5, pady=5)
 
-PararButtonPolar = Button(frame_botones_dos, text ="Parar",bg ='lightblue',fg ="black",command =nada, **boton_style)
-ReanudarButtonPolar = Button(frame_botones_dos, text="Reanudar", bg='lightyellow', fg="black", command=nada, **boton_style)
+PararButtonPolar = Button(frame_botones_dos, text ="Parar",bg ='lightblue',fg ="black",command =PararDist, **boton_style)
+ReanudarButtonPolar = Button(frame_botones_dos, text="Reanudar", bg='lightyellow', fg="black", command=ReanudarDist, **boton_style)
 cambiarButtonderecha = Button(frame_botones_dos, text="Mostrar Posicion", bg='lightgreen', fg="black", command=cambiar_modo_derecha, **boton_style)
 # Replace IdiomaButton creation with a proper command and initial label showing the next language
 next_idx = (LANGUAGES.index(Idioma) + 1) % len(LANGUAGES) if Idioma in LANGUAGES else 0
@@ -1439,9 +1461,9 @@ cart_ax.set_ylim(-lim, lim)
 cart_ax.set_aspect('equal', 'box')
 
 # initial artists (polar mode)
-linea_polar, = polar_ax.plot(np.radians(np.arange(0,181)), distancies, lw=2, label="Distancia")
+linea_polar, = polar_ax.plot(np.radians(np.arange(0,181)), distancies, lw=2)
 punt_polar, = polar_ax.plot([], [], "go", markersize=8, label="haz actual")
-beam_polar, = polar_ax.plot([], [], lw=3, label="BEAM")
+beam_polar, = polar_ax.plot([], [], lw=3, color='red', label="Distancia")
 polar_ax.legend(loc='upper right')
 
 # initial artists (cartesian mode)
