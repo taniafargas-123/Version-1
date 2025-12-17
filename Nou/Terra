@@ -44,6 +44,7 @@ void setup() {
   pinMode(aVerde, OUTPUT);
   pinMode(aAzul, OUTPUT);
   pinMode(aBlanca, OUTPUT);
+  pinMode(7, OUTPUT);
 }
 
 // =====================================================================================================================
@@ -89,6 +90,7 @@ void setup() {
   //--------------------------------------------------
   if (millis() > nextFalloTiempo) { //avisa si hay un fallo en comunicacion LoRa
     aTiempo = 1;
+    digitalWrite(7, HIGH);
   }
 
   //--------------------------------------------------
