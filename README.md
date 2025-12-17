@@ -48,5 +48,5 @@ Link del video demostratiu:
 ---
 
 ##  Objectiu Final  
-Construir un **ecosistema satel·lital didàctic i funcional** que combini electrònica, comunicació, programació i visualització de dades. Una experiència completa de “terra a òrbita”.
+Construir un **sistema satel·lital didàctic i funcional** que combini electrònica, comunicació, programació i visualització de dades. Una experiència completa de “terra a òrbita”.
 
