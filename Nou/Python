@@ -32,6 +32,7 @@ distancies = np.full(len(angles), np.nan)
 running = False
 ventana_abierta = True
 
+
 # Time series
 temperaturas = []
 humedades = []
@@ -54,12 +55,14 @@ j= 0
 Grafica_izquierda = "Temperatura"   # "Temperatura" or "Humedad"
 Grafica_derecha = "Distancia"       # "Distancia" or "Posicion"
 Idioma = "Castellano" # Castellano Catala English o ...
+Automatico = "Activado"  # Activado o Desactivado
 
 # Variables media temp
 modo_Media_temperatura=0
 N = 10
 buffer_temp = deque(maxlen=N)  # keep the last N temperature samples for median
 Temperatura_media = None
+maximo_temp = 99999
 
 # Small helpers / constants
 R_EARTH = 6371000  # meters
@@ -293,10 +296,31 @@ def Reanudar():
 
 def nada():
     print('3:'+periodo_temp)
-
+    
+def automatic():
+    global Automatico
+    if Automatico == "Activado":
+        Automatico = "Desactivado"
+        if mySerial:
+            try:
+                mySerial.write(b'AUT:0')
+                registrar_evento("comando", "Modo automático desactivado")
+                AutomaticButton.config(text="Automatico")
+            except Exception as e:
+                print("Serial write error:", e)
+    else:
+        Automatico = "Activado"
+        if mySerial:
+            try:
+                mySerial.write(b'AUT:1')
+                registrar_evento("comando", "Modo automático activado")
+                AutomaticButton.config(text="Manual")
+            except Exception as e:
+                print("Serial write error:", e)
+    
 def Enter_pressed(event=None):
     """Parse user text for 'periodo temperatura N' or 'periodo distancia N' (fuzzy)."""
-    global periodo_temp, periodo_dist,angulo
+    global periodo_temp, periodo_dist, angulo2, maximo_temp
     user_text = Texto.get().strip()
     
         # --- OBSERVACIONES DEL USUARIO ---
@@ -315,7 +339,7 @@ def Enter_pressed(event=None):
         Texto.delete(0, "end")
         return
 
-    comandos = ["periodo temperatura", "periodo distancia","Angulo"]
+    comandos = ["periodo temperatura", "periodo distancia","Angulo","Maximo temperatura"]
     match = difflib.get_close_matches(user_lower, comandos, n=1, cutoff=0.4)
     if match:
         cmd = match[0]
@@ -338,12 +362,21 @@ def Enter_pressed(event=None):
                 except Exception as e:
                     print("Serial write error:", e)
         elif cmd == "Angulo":
-            angulo = numero
+            angulo2 = numero
             print('5:'+str(numero))
             if mySerial:
                 try:
                     mySerial.write(str('5:'+str(numero)).encode())
-                    registrar_evento("comando", f"Angulo cambiado a {angulo}")
+                    registrar_evento("comando", f"Angulo cambiado a {angulo2}")
+                except Exception as e:
+                    print("Serial write error:", e)
+        elif cmd == "Maximo temperatura":
+            maximo_temp = numero
+            print('6:'+str(numero))
+            if mySerial:
+                try:
+                    mySerial.write(str('6:'+str(numero)).encode())
+                    registrar_evento("comando", f"Maximo temperatura cambiado a {maximo_temp}")
                 except Exception as e:
                     print("Serial write error:", e)
     else:
@@ -391,7 +424,7 @@ def IniciarComunicacion2():
             posicionx = None
             posiciony = None
             posicionz = None
-            ang =90
+
             try:
                 # Read raw bytes and decode robustly (avoid UnicodeDecodeError)
                 line_bytes = mySerial.readline()
@@ -558,6 +591,7 @@ def IniciarComunicacion2():
                         dist = valor_num
                     elif prefijo == 'ANG':
                         ang = valor_num
+                        print(ang)
                     elif prefijo == 'X':
                         posicionx = valor_num
                         last_posx = valor_num
@@ -716,6 +750,7 @@ def IniciarComunicacion2():
 
                 if temperatura is not None:
                     if modo_Media_temperatura == 0:
+                        
                         # Keep last N values and compute the median from available samples so
                         # the median updates progressively from the first sample.
                         buffer_temp.append(temperatura)
@@ -727,6 +762,17 @@ def IniciarComunicacion2():
                         # Scale the displayed median linearly from 0 to full median over N samples
                         ramp_factor = min(len(buffer_temp), N) / float(N)
                         Temperatura_media = median_val * ramp_factor
+                        if Temperatura_media>maximo_temp:
+                            contador = contador + 1
+                            if contador>=3:
+                                if mySerial:
+                                    try:
+                                        mySerial.write(b'7:1')
+                                        registrar_evento("alarma", f"Alarma de temperatura alta: {Temperatura_media:.2f}C")
+                                    except Exception as e:
+                                        print("Serial write error:", e)
+                        else:
+                            contador = 0
                         if DEBUG_TRAIL:
                             print(f"[MED] samples={len(buffer_temp)}, median={median_val}, ramp={ramp_factor:.2f}, displayed={Temperatura_media}")
 
@@ -777,6 +823,8 @@ TRANSLATIONS = {
         "show_humidity": "Mostrar Humedad",
         "show_position": "Mostrar Posicion",
         "show_distance": "Mostrar Distancia",
+        "automatic_on": "Automático",
+        "automatic_off": "Manual",
         "media_sat": "Media Sat",
         "media_earth": "Media Tierra",
         "view_events": "Ver eventos",
@@ -808,6 +856,8 @@ TRANSLATIONS = {
         "show_humidity": "Mostra Humitat",
         "show_position": "Mostra Posició",
         "show_distance": "Mostra Distància",
+        "automatic_on": "Automàtic",
+        "automatic_off": "Manual",
         "media_sat": "Mitjana Sat",
         "media_earth": "Mitjana Terra",
         "view_events": "Veure esdeveniments",
@@ -839,6 +889,8 @@ TRANSLATIONS = {
         "show_humidity": "Show Humidity",
         "show_position": "Show Position",
         "show_distance": "Show Distance",
+        "automatic_on": "Automatic",
+        "automatic_off": "Manual",
         "media_sat": "Sat Avg",
         "media_earth": "Earth Avg",
         "view_events": "View events",
@@ -870,6 +922,8 @@ TRANSLATIONS = {
         "show_humidity": "显示湿度",
         "show_position": "显示位置",
         "show_distance": "显示距离",
+        "automatic_on": "自动模式开启",
+        "automatic_off": "自动模式关闭",
         "media_sat": "卫星均值",
         "media_earth": "地面均值",
         "view_events": "查看事件",
@@ -901,6 +955,8 @@ TRANSLATIONS = {
         "show_humidity": "Afficher Humidité",
         "show_position": "Afficher Position",
         "show_distance": "Afficher Distance",
+        "automatic_on": "Automatique",
+        "automatic_off": "Manuel",
         "media_sat": "Moyenne Sat",
         "media_earth": "Moyenne Terre",
         "view_events": "Voir événements",
@@ -932,6 +988,8 @@ TRANSLATIONS = {
         "show_humidity": "Feuchtigkeit anzeigen",
         "show_position": "Position anzeigen",
         "show_distance": "Abstand anzeigen",
+        "automatic_on": "Automatikmodus Ein",
+        "automatic_off": "Automatikmodus Aus",
         "media_sat": "Sat Mittel",
         "media_earth": "Erd Mittel",
         "view_events": "Ereignisse anzeigen",
@@ -983,6 +1041,11 @@ def update_texts():
             cambiarButtonderecha.config(text=t["show_position"])
         else:
             cambiarButtonderecha.config(text=t["show_distance"])
+        # automatic mode button 
+        if Automatico == "Activado":
+            AutomaticButton.config(text=t["automatic_off"])
+        else:
+            AutomaticButton.config(text=t["automatic_on"])
         # media mode button text
         if modo_Media_temperatura == 0:
             cambiarmediaButton.config(text=t["media_sat"])
@@ -1319,6 +1382,7 @@ cambiarButtonderecha = Button(frame_botones_dos, text="Mostrar Posicion", bg='li
 # Replace IdiomaButton creation with a proper command and initial label showing the next language
 next_idx = (LANGUAGES.index(Idioma) + 1) % len(LANGUAGES) if Idioma in LANGUAGES else 0
 IdiomaButton = Button(frame_botones_dos, text=LANGUAGES[next_idx], bg='lightblue', fg='black', command=idiomafuncion, **boton_style)
+AutomaticButton = Button(frame_botones_dos, text="Manual", bg='lightblue', fg='black', command=automatic, **boton_style)
 
 VerEventosButton = Button(frame_botones, text="Ver eventos", bg='lavender', fg="black",
  command=abrir_ventana_eventos, **boton_style)
@@ -1329,6 +1393,7 @@ PararButtonPolar.grid(row=1, column=0, padx=5, pady=5)
 ReanudarButtonPolar.grid(row=2, column=0, padx=5, pady=5)
 cambiarButtonderecha.grid(row=3, column=0, padx=5, pady=5)
 IdiomaButton.grid(row=4, column=0, padx=5, pady=5)
+AutomaticButton.grid(row=5, column=0, padx=5, pady=5)
 
 # --- Left graph (time series) ---
 frame_grafica = LabelFrame(window, bg="white", bd=2, text="Gráfica en tiempo real", font=("Arial", 11))
