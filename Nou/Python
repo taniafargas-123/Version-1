@@ -737,6 +737,10 @@ def IniciarComunicacion2():
 
 
                 # SOLO actualizar radar si ambos existen
+                if ang is not None:
+                    angtemp = ang
+                if dist is not None:
+                    disttemp = dist
                 if ang is not None and dist is not None:
                     if 0 <= ang <= 180:
                         idx = int(round(ang))
@@ -747,6 +751,8 @@ def IniciarComunicacion2():
 
                         # beam
                         beam_polar.set_data([theta_rad, theta_rad], [0, dist])
+                        disttemp = None
+                        angtemp = None
 
                 if temperatura is not None:
                     if modo_Media_temperatura == 0:
