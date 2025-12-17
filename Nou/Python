@@ -769,8 +769,7 @@ def IniciarComunicacion2():
                         punt = ([theta_rad], [disttemp])
                         
                         beam_polar.set_data([theta_rad, theta_rad], [0, disttemp])
-                        disttemp = None
-                        angtemp = None
+
 
                 if temperatura is not None:
                     if modo_Media_temperatura == 0:
@@ -853,7 +852,7 @@ TRANSLATIONS = {
         "media_earth": "Media Tierra",
         "view_events": "Ver eventos",
         "polar_title": "Radar de Ultrasonidos",
-        "placeholder": "Escribe el periodo de temperatura y humedad o el periodo de la distancia",
+        "placeholder": "Escribe aquí:",
         "temp_plot_title": "Gráfica de Temperatura",
         "hum_plot_title": "Gráfica de Humedad",
         "temp_ylabel": "Temperatura (°C)",
@@ -864,7 +863,7 @@ TRANSLATIONS = {
         "current_point": "Punto actual",
         "orbit_label": "Órbita Satélite",
         "last_point_label": "Satélite Actual",
-        "3d_title": "Órbita Satélite 3D (Matplotlib)",
+        "3d_title": "Órbita Satélite 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
         "z_label": "Z (m)",
@@ -900,7 +899,7 @@ TRANSLATIONS = {
         "current_point": "Punt actual",
         "orbit_label": "Òrbita Satèl·lit",
         "last_point_label": "Satèl·lit Actual",
-        "3d_title": "Òrbita Satèl·lit 3D (Matplotlib)",
+        "3d_title": "Òrbita Satèl·lit 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
         "z_label": "Z (m)",
@@ -935,7 +934,7 @@ TRANSLATIONS = {
         "current_point": "Current point",
         "orbit_label": "Satellite Orbit",
         "last_point_label": "Current Satellite",
-        "3d_title": "Satellite Orbit 3D (Matplotlib)",
+        "3d_title": "Satellite Orbit 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
         "z_label": "Z (m)",
@@ -970,7 +969,7 @@ TRANSLATIONS = {
         "current_point": "当前点",
         "orbit_label": "卫星轨道",
         "last_point_label": "当前卫星",
-        "3d_title": "卫星轨道 3D (Matplotlib)",
+        "3d_title": "卫星轨道 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
         "z_label": "Z (m)",
@@ -1005,7 +1004,7 @@ TRANSLATIONS = {
         "current_point": "Point courant",
         "orbit_label": "Orbitesatellite",
         "last_point_label": "Satellite actuel",
-        "3d_title": "Orbite Satellite 3D (Matplotlib)",
+        "3d_title": "Orbite Satellite 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
         "z_label": "Z (m)",
@@ -1040,10 +1039,10 @@ TRANSLATIONS = {
         "current_point": "Aktueller Punkt",
         "orbit_label": "Satellitenbahn",
         "last_point_label": "Aktueller Satellit",
-        "3d_title": "Satellitenbahn 3D (Matplotlib)",
+        "3d_title": "Satellitenbahn 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
         "info_title":"Anleitung",
         "info_text":"Im weißen Feld unten können Sie Folgendes eingeben: \n\n • Den Zeitraum, in dem die Temperatur- und Entfernungsdaten gesendet werden.\n\n • Den gewünschten Drehwinkel des Satelliten.\n\n • Eine maximale Temperatur (der blaue Alarm ertönt, wenn diese dreimal überschritten wird). \n\n • Einen Kommentar, der im Ereignisprotokoll erscheint.\n\n Je nach den eingegebenen Daten müssen Sie zuerst die entsprechenden Befehle und anschließend ein Leerzeichen eingeben.\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     }
@@ -1060,7 +1059,7 @@ def update_texts():
             pass
 
         tituloLabel.config(text=t["title"])
-        frame_grafica.config(text=t["real_time_graph"])
+    
         frame_grafica_3d.config(text=t["graph_3d"])
         IniciarButton.config(text=t["start"])
         PararButton.config(text=t["stop"])
@@ -1277,6 +1276,8 @@ def actualiza_grafica_3d():
     ax_3d.plot_surface(x_earth_sphere, y_earth_sphere, z_earth_sphere, 
                        color='blue', alpha=0.3, edgecolor='none', label='Earth')
     
+    ax_3d.set_box_aspect([1, 1, 1])
+    
     if not orbit_trail_3d:
         # Configuració inicial d'eixos si no hi ha dades
         lim = ORBIT_RADIUS * 1.2
@@ -1348,36 +1349,64 @@ except Exception:
         pass
 
 window.title("Monitor Serial - Temperatura y Humedad")
-window.geometry("1200x900") # Aumentar altura per la nova gràfica 3D
+window.geometry("1400x1000")
 
-# Grid layout
-window.rowconfigure(1, weight=2) # Gráficas de arriba
-window.rowconfigure(3, weight=3) # Gráfica 3D (nueva fila)
-window.columnconfigure(1, weight=2)
-window.columnconfigure(2, weight=2)
-window.columnconfigure(3, weight=1) # Columna de botones derecha
+# Grid layout - configuración simétrica
+# Fila 0: Título (todo el ancho)
+# Fila 1: Gráficas y botones (50% izq + 50% der)
+# Fila 2: Input box (todo el ancho)
+# Fila 3: Gráfica 3D (75%) + Instrucciones (25%)
+
+window.rowconfigure(0, weight=0, minsize=80)  # Título
+window.rowconfigure(1, weight=0, minsize=280)  # Gráficas de arriba
+window.rowconfigure(2, weight=0, minsize=60)  # Input box
+window.rowconfigure(3, weight=1)  # Gráfica 3D e instrucciones (expandible)
+
+window.columnconfigure(0, weight=1)  # Mitad izquierda (botones + gráfica temp)
+window.columnconfigure(1, weight=1)  # Mitad derecha (gráfica radar + botones)
+
 
 tituloLabel = Label(window, text="Monitor Serial", font=("Times New Roman", 22, "italic"), bg='pink')
-tituloLabel.grid(row=0, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+tituloLabel.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
-frame_botones = Frame(window, bg="lightpink", bd=2)
-frame_botones.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+# Mitad izquierda (Botones + Gráfica temperatura)
+frame_izquierda = Frame(window, bg="white")
+frame_izquierda.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+frame_izquierda.columnconfigure(0, weight=0, minsize=160)
+frame_izquierda.columnconfigure(1, weight=1)
+frame_izquierda.rowconfigure(0, weight=1)
 
-frame_botones_dos = Frame(window, bg="lightpink", bd=2)
-frame_botones_dos.grid(row=1, column=3, padx=10, pady=10, sticky="nsew")
+frame_botones = Frame(frame_izquierda, bg="lightpink", bd=2)
+frame_botones.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
-row2frame = Frame(window, bg="lightpink")
-row2frame.grid(row=2, column=0, columnspan=4, pady=10, sticky="nsew")
-row2frame.columnconfigure(1, weight=1)
+frame_grafica = LabelFrame(frame_izquierda, bg="white", bd=2, text="Gráfica en tiempo real", font=("Arial", 11))
+frame_grafica.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
+frame_grafica.rowconfigure(0, weight=1)
+frame_grafica.columnconfigure(0, weight=1)
+
+# Mitad derecha (Gráfica radar + Botones)
+frame_derecha = Frame(window, bg="white")
+frame_derecha.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
+frame_derecha.columnconfigure(0, weight=1)
+frame_derecha.columnconfigure(1, weight=0, minsize=160)
+frame_derecha.rowconfigure(0, weight=1)
+
+frame_grafica_polar = LabelFrame(frame_derecha, bg="white", bd=2, text="Gráfica de Radar", font=("Arial", 11))
+frame_grafica_polar.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+frame_grafica_polar.rowconfigure(0, weight=1)
+frame_grafica_polar.columnconfigure(0, weight=1)
+
+frame_botones_dos = Frame(frame_derecha, bg="lightpink", bd=2)
+frame_botones_dos.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
 # Input box with placeholder
 input_user = StringVar()
 def set_placeholder(event=None):
     try:
         t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
-        placeholder_text = t.get("placeholder", "Escribe el periodo de temperatura y humedad o el periodo de la distancia")
+        placeholder_text = t.get("placeholder", "Escribe aquí:")
     except Exception:
         # TRANSLATIONS may not be defined yet; use a safe default
-        placeholder_text = "Escribe el periodo de temperatura y humedad o el periodo de la distancia"
+        placeholder_text = "Escribe aquí:"
     if Texto.get() == "":
         Texto.insert(0, placeholder_text)
         Texto.config(fg="grey")
@@ -1385,16 +1414,22 @@ def set_placeholder(event=None):
 def clear_placeholder(event=None):
     try:
         t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
-        placeholder_text = t.get("placeholder", "Escribe el periodo de temperatura y humedad o el periodo de la distancia")
+        placeholder_text = t.get("placeholder", "Escribe aquí:", ("Arial, 9"))
     except Exception:
-        placeholder_text = "Escribe el periodo de temperatura y humedad o el periodo de la distancia"
+        placeholder_text = "Escribe aquí:"
     if Texto.get() == placeholder_text:
         Texto.delete(0, "end")
         Texto.config(fg="black")
 
 # Use a font that displays Chinese; explicit font here ensures the Entry shows Chinese properly
+row2frame = Frame(window, bg="lightpink")
+row2frame.grid(row=2, column=0, columnspan=2, pady=10, sticky="ew")
+row2frame.columnconfigure(0, weight=0, minsize=160)
+row2frame.columnconfigure(1, weight=1)
+row2frame.columnconfigure(2, weight=0, minsize=160)
+
 Texto = Entry(row2frame, textvariable=input_user, width=60, font=("Microsoft YaHei", 12), fg="grey")
-Texto.grid(row=0, column=1, padx=10, pady=5, sticky="nsew", ipady=8)
+Texto.grid(row=0, column=1, padx=10, pady=5, sticky="ew", ipady=8)
 Texto.bind("<Return>", Enter_pressed)
 Texto.bind("<FocusIn>", clear_placeholder)
 Texto.bind("<FocusOut>", set_placeholder)
@@ -1426,36 +1461,29 @@ VerEventosButton = Button(frame_botones, text="Ver eventos", bg='lavender', fg="
  command=abrir_ventana_eventos, **boton_style)
 VerEventosButton.grid(row=5, column=0, padx=5, pady=5)
 
-
+PararButtonPolar.grid(row=0, column=0, padx=5, pady=5)
+ReanudarButtonPolar.grid(row=1, column=0, padx=5, pady=5)
+cambiarButtonderecha.grid(row=2, column=0, padx=5, pady=5)
+IdiomaButton.grid(row=3, column=0, padx=5, pady=5)
+AutomaticButton.grid(row=4, column=0, padx=5, pady=5)
 PararButtonPolar.grid(row=1, column=0, padx=5, pady=5)
 ReanudarButtonPolar.grid(row=2, column=0, padx=5, pady=5)
 cambiarButtonderecha.grid(row=3, column=0, padx=5, pady=5)
 IdiomaButton.grid(row=4, column=0, padx=5, pady=5)
 AutomaticButton.grid(row=5, column=0, padx=5, pady=5)
 
-# --- Left graph (time series) ---
-frame_grafica = LabelFrame(window, bg="white", bd=2, text="Gráfica en tiempo real", font=("Arial", 11))
-frame_grafica.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
-frame_grafica.rowconfigure(0, weight=1)
-frame_grafica.columnconfigure(0, weight=1)
 
-fig = matplotlib.figure.Figure(figsize=(6,4))
+fig = matplotlib.figure.Figure(figsize=(5, 3), tight_layout=True)
 ax = fig.add_subplot(111)
 canvas = FigureCanvasTkAgg(fig, master=frame_grafica)
 canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
 # --- Right graph (polar or position) ---
-frame_grafica_polar = LabelFrame(window, bg="white", bd=2, text="Gráfica en tiempo real", font=("Arial", 11))
-frame_grafica_polar.grid(row=1, column=2, padx=10, pady=10, sticky="nsew")
-frame_grafica_polar.rowconfigure(0, weight=1)
-frame_grafica_polar.columnconfigure(0, weight=1)
 
-fig_polar = matplotlib.figure.Figure(figsize=(6,4))
+fig_polar = matplotlib.figure.Figure(figsize=(5, 3), tight_layout=True)
 # create two axes: one polar and one cartesian; toggle visibility
 polar_ax = fig_polar.add_subplot(1,1,1, polar=True)
-cart_ax = fig_polar.add_subplot(1,1,1, polar=False, frame_on=True)  # will overlap; we will toggle visibility
-
-# configure polar axis
+cart_ax = fig_polar.add_subplot(1,1,1, polar=False, frame_on=True)  # will overlap; we will toggle visibility# configure polar axis
 polar_ax.set_theta_zero_location("E")
 polar_ax.set_theta_direction(1)
 polar_ax.set_thetalim(0, np.pi)
@@ -1496,16 +1524,17 @@ cart_ax.set_visible(False)
 
 canvas_polar = FigureCanvasTkAgg(fig_polar, master=frame_grafica_polar)
 canvas_polar.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+canvas_polar.draw()  # Dibujar el canvas inicialmente
 
 # --- Bottom Graph (3D Orbit) ---
 frame_grafica_3d = LabelFrame(window, bg="white", bd=2, text="Gráfica de Órbita 3D", font=("Arial", 11))
-# Ubicación: Fila 3, columnas 0 a 3 (ocupa todo el ancho inferior)
-frame_grafica_3d.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+# Ubicación: Fila 3, columna 0 (ocupa 3/4 del ancho)
+frame_grafica_3d.grid(row=3, column=0, padx=10, pady=10, sticky="nsew")
 frame_grafica_3d.rowconfigure(0, weight=1)
 frame_grafica_3d.columnconfigure(0, weight=1)
 
 # Crear Figura y Eje 3D
-fig_3d = matplotlib.figure.Figure(figsize=(12, 6))
+fig_3d = matplotlib.figure.Figure(figsize=(10, 5), tight_layout=True)
 # Importante: usar projection='3d'
 ax_3d = fig_3d.add_subplot(111, projection='3d') 
 
@@ -1513,16 +1542,14 @@ canvas_3d = FigureCanvasTkAgg(fig_3d, master=frame_grafica_3d)
 canvas_3d.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
 frame_info = LabelFrame(window, bg="white", bd=2, text="Instrucciones:", font=("Arial", 11))
-frame_info.grid(row=3, column=3, padx=10, pady=10, sticky="nsew")
+frame_info.grid(row=3, column=1, padx=10, pady=10, sticky="nsew")
+frame_info.rowconfigure(0, weight=1)
+frame_info.columnconfigure(0, weight=1)
 
 text_informatiu = "En la caja blanca de debajo de todo, puedes introducir:\n\n • El período en el que se envían los datos de temperatura y distancia.\n\n • El ángulo que quieres que gire el satélite.\n\n • Una temperatura máxima (la alarma azul sonará si se supera 3 veces). \n\n • Un comentario que aparece en el registro de eventos \n\n Según el dato que introduzcas, deberás escribir antes los respectivos comandos seguidos por un espacio: \n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
-lbl_info = Label(frame_info, text=text_informatiu, bg="light pink", font=("Arial", 12), justify="center", anchor="nw", wraplength=250)
+lbl_info = Label(frame_info, text=text_informatiu, bg="light pink", font=("Arial", 8), justify="center", anchor="nw", wraplength=320)
 lbl_info.pack(padx=15, pady=15, fill="both", expand=True)
 
-window.columnconfigure(0, weight=1)
-window.columnconfigure(1, weight=1)
-window.columnconfigure(2, weight=1)
-window.columnconfigure(3, weight=0) # La capseta de text no s'estira tant com gràfica
 # Llamada inicial para establecer los límites del eje 3D
 actualiza_grafica_3d()
 update_texts()
