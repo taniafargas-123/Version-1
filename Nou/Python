@@ -23,7 +23,7 @@ matplotlib.rcParams["font.family"] = "sans-serif"
 matplotlib.rcParams["axes.unicode_minus"] = False
 
 # --- CONFIGURACIÓN SERIAL ---
-device = 'COM5'
+device = '/dev/cu.usbmodem1301'
 mySerial = serial.Serial(device, 9600, timeout=1)
 
 # --- GLOBALS ---
@@ -277,7 +277,7 @@ def Parar():
     if mySerial:
         try:
             mySerial.write(b'1:1')
-            registrar_evento("comando", "Parar transmisión de datos parar temperatura")
+            registrar_evento("comando", "Parar transmisión de datos")
         except Exception as e:
             print("Serial write error:", e)
     running = False
@@ -288,29 +288,14 @@ def Reanudar():
     if mySerial:
         try:
             mySerial.write(b'1:0')
-            registrar_evento("comando", "Reanudar transmisión de datos para temperatura")
+            registrar_evento("comando", "Reanudar transmisión de datos")
         except Exception as e:
             print("Serial write error:", e)
     running = True
     print("▶ Comunicación reanudada")
 
-def ReanudarDist():
-    global running
-    if mySerial:
-        try:
-            mySerial.write(b'1:2')
-            registrar_evento("comando", "Reanudar transmisión de datos para distancia")
-        except Exception as e:
-            print("Serial write error:", e)
-    
-def PararDist():
-    global running
-    if mySerial:
-        try:
-            mySerial.write(b'1:3')
-            registrar_evento("comando", "Parar transmisión de datos para distancia")
-        except Exception as e:
-            print("Serial write error:", e)
+def nada():
+    print('3:'+periodo_temp)
     
 def automatic():
     global Automatico
@@ -339,8 +324,8 @@ def Enter_pressed(event=None):
     user_text = Texto.get().strip()
     
         # --- OBSERVACIONES DEL USUARIO ---
-    if user_text.lower().startswith("comentari:"):
-        comentario = user_text[len("comentari:"):].strip()
+    if user_text.lower().startswith("comentario"):
+        comentario = user_text[len("comentario"):].strip()
         if comentario:
             registrar_evento("observacion", comentario)
         Texto.delete(0, "end")
@@ -354,7 +339,7 @@ def Enter_pressed(event=None):
         Texto.delete(0, "end")
         return
 
-    comandos = ["periodo temperatura", "periodo distancia","Angulo","Maximo temperatura"]
+    comandos = ["periodo temperatura", "periodo distancia","angulo","maximo temperatura"]
     match = difflib.get_close_matches(user_lower, comandos, n=1, cutoff=0.4)
     if match:
         cmd = match[0]
@@ -376,22 +361,22 @@ def Enter_pressed(event=None):
                     registrar_evento("comando", f"Periodo de distancia cambiado a {periodo_dist}")
                 except Exception as e:
                     print("Serial write error:", e)
-        elif cmd == "Angulo":
+        elif cmd == "angulo":
             angulo2 = numero
             print('5:'+str(numero))
             if mySerial:
                 try:
                     mySerial.write(str('5:'+str(numero)).encode())
-                    registrar_evento("comando", f"Angulo cambiado a {angulo2}")
+                    registrar_evento("comando", f"angulo cambiado a {angulo2}")
                 except Exception as e:
                     print("Serial write error:", e)
-        elif cmd == "Maximo temperatura":
+        elif cmd == "maximo temperatura":
             maximo_temp = numero
             print('6:'+str(numero))
             if mySerial:
                 try:
                     mySerial.write(str('6:'+str(numero)).encode())
-                    registrar_evento("comando", f"Maximo temperatura cambiado a {maximo_temp}")
+                    registrar_evento("comando", f"maximo temperatura cambiado a {maximo_temp}")
                 except Exception as e:
                     print("Serial write error:", e)
     else:
@@ -403,7 +388,7 @@ def IniciarComunicacion():
     running = True
     if mySerial:
         try:
-            mySerial.write(b'1:4')
+            mySerial.write(b'1:0')
         except Exception as e:
             print("Serial write error:", e)
     threadRecepcion = threading.Thread(target=IniciarComunicacion2, daemon=True)
@@ -430,8 +415,6 @@ def IniciarComunicacion2():
     print("Iniciado")
     global i, ventana_abierta, distancies, punt, linea, j, buffer_temp, Temperatura_media, last_posx, last_posy, last_posz, last_posx_updated, last_posy_updated, last_posz_updated
     Temperatura_media = np.nan
-    angtemp = None
-    disttemp = None
     while ventana_abierta:
         if running and mySerial.in_waiting > 0:
             temperatura = None
@@ -608,7 +591,6 @@ def IniciarComunicacion2():
                         dist = valor_num
                     elif prefijo == 'ANG':
                         ang = valor_num
-                        print("1")
                         print(ang)
                     elif prefijo == 'X':
                         posicionx = valor_num
@@ -755,22 +737,16 @@ def IniciarComunicacion2():
 
 
                 # SOLO actualizar radar si ambos existen
-                if ang is not None:
-                    angtemp = ang
-                if dist is not None:
-                    disttemp = dist
-                if angtemp is not None and disttemp is not None:
-                    if 0 <= angtemp <= 180:
-
-                        idx = int(round(angtemp))
-                        distancies[idx] = disttemp
+                if ang is not None and dist is not None:
+                    if 0 <= ang <= 180:
+                        idx = int(round(ang))
+                        distancies[idx] = dist
 
                         theta_rad = np.radians(idx)
-                        punt = ([theta_rad], [disttemp])
-                        
-                        beam_polar.set_data([theta_rad, theta_rad], [0, disttemp])
-                        disttemp = None
-                        angtemp = None
+                        punt = ([theta_rad], [dist])
+
+                        # beam
+                        beam_polar.set_data([theta_rad, theta_rad], [0, dist])
 
                 if temperatura is not None:
                     if modo_Media_temperatura == 0:
@@ -853,7 +829,7 @@ TRANSLATIONS = {
         "media_earth": "Media Tierra",
         "view_events": "Ver eventos",
         "polar_title": "Radar de Ultrasonidos",
-        "placeholder": "Escribe el periodo de temperatura y humedad o el periodo de la distancia",
+        "placeholder": "Escribe aquí:",
         "temp_plot_title": "Gráfica de Temperatura",
         "hum_plot_title": "Gráfica de Humedad",
         "temp_ylabel": "Temperatura (°C)",
@@ -864,10 +840,13 @@ TRANSLATIONS = {
         "current_point": "Punto actual",
         "orbit_label": "Órbita Satélite",
         "last_point_label": "Satélite Actual",
-        "3d_title": "Órbita Satélite 3D (Matplotlib)",
+        "3d_title": "Órbita Satélite 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instrucciones",
+        "info_text": "En la caja blanca de texto, puedes introducir:\n\n • El período en el que se envían los datos de temperatura y distancia.\n\n • El ángulo que quieres que gire el satélite.\n\n • Una temperatura máxima (la alarma azul sonará si se supera 3 veces). \n\n • Un comentario que aparece en el registro de eventos \n\n Según el dato que introduzcas, deberás escribir antes los respectivos comandos seguidos por un espacio:\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
+
     },
     "Catala": {
         "title": "Monitor Serial",
@@ -886,7 +865,7 @@ TRANSLATIONS = {
         "media_earth": "Mitjana Terra",
         "view_events": "Veure esdeveniments",
         "polar_title": "Radar d'Ultrasons",
-        "placeholder": "Escriu el període de temperatura i humitat o el període de la distància",
+        "placeholder": "Escriu aquí:",
         "temp_plot_title": "Gràfica de Temperatura",
         "hum_plot_title": "Gràfica de Humitat",
         "temp_ylabel": "Temperatura (°C)",
@@ -897,10 +876,12 @@ TRANSLATIONS = {
         "current_point": "Punt actual",
         "orbit_label": "Òrbita Satèl·lit",
         "last_point_label": "Satèl·lit Actual",
-        "3d_title": "Òrbita Satèl·lit 3D (Matplotlib)",
+        "3d_title": "Òrbita Satèl·lit 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instructions",
+        "info_text": "A la capsa blanca de text, pots introduir:\n\n • El període en què s'envien les dades de temperatura i distància.\n\n • L'angle que vols que giri el satèl·lit.\n\n • Una temperatura màxima (l'alarma blava sonarà si se supera 3 cops). \n\n • Un comentari que surt al registre d'events \n\n Segons la dada que introdueixis, hauràs d'escriure abans els comandos respectius seguits per un espai: \n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "English": {
         "title": "Serial Monitor",
@@ -919,7 +900,7 @@ TRANSLATIONS = {
         "media_earth": "Earth Avg",
         "view_events": "View events",
         "polar_title": "Ultrasounds radar",
-        "placeholder": "Type the temperature/humidity period or the distance period",
+        "placeholder": "Write here:",
         "temp_plot_title": "Temperature Plot",
         "hum_plot_title": "Humidity Plot",
         "temp_ylabel": "Temperature (°C)",
@@ -930,10 +911,12 @@ TRANSLATIONS = {
         "current_point": "Current point",
         "orbit_label": "Satellite Orbit",
         "last_point_label": "Current Satellite",
-        "3d_title": "Satellite Orbit 3D (Matplotlib)",
+        "3d_title": "Satellite Orbit 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instructions",
+        "info_text": "In the white box above, you can enter:\n\n • The period in which the temperature and distance data are sent.\n\n • The angle you want the satellite to rotate.\n\n • A maximum temperature (the blue alarm will sound if it is exceeded 3 times). \n\n • A comment that appears in the event log \n\n Depending on the data you enter, you will have to write the respective commands first followed by a space:\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "中文": {
         "title": "串口监视器",
@@ -952,7 +935,7 @@ TRANSLATIONS = {
         "media_earth": "地面均值",
         "view_events": "查看事件",
         "polar_title": "超声雷达",
-        "placeholder": "输入温度/湿度周期或距离周期",
+        "placeholder": "請在此處填寫",
         "temp_plot_title": "温度图表",
         "hum_plot_title": "湿度图表",
         "temp_ylabel": "温度 (°C)",
@@ -963,10 +946,12 @@ TRANSLATIONS = {
         "current_point": "当前点",
         "orbit_label": "卫星轨道",
         "last_point_label": "当前卫星",
-        "3d_title": "卫星轨道 3D (Matplotlib)",
+        "3d_title": "卫星轨道",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"說明",
+        "info_text": "在下面的白色框中，您可以輸入：\n\n • 發送溫度和距離資料的週期。 \n\n • 衛星旋轉角度。 \n\n • 最高溫度（如果超過最高溫度 3 次，將發出藍色警報）。 \n\n • 事件日誌中顯示的註解。 \n\n 根據您輸入的數據，您需要先輸入相應的命令，然後輸入一個空格：\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "Français": {
         "title": "Moniteur Série",
@@ -985,7 +970,7 @@ TRANSLATIONS = {
         "media_earth": "Moyenne Terre",
         "view_events": "Voir événements",
         "polar_title": "Radar à ultrasons",
-        "placeholder": "Tapez la période température/humidité ou la période de distance",
+        "placeholder": "Écrivez ici:",
         "temp_plot_title": "Graphique de Température",
         "hum_plot_title": "Graphique d'Humidité",
         "temp_ylabel": "Température (°C)",
@@ -996,10 +981,12 @@ TRANSLATIONS = {
         "current_point": "Point courant",
         "orbit_label": "Orbitesatellite",
         "last_point_label": "Satellite actuel",
-        "3d_title": "Orbite Satellite 3D (Matplotlib)",
+        "3d_title": "Orbite Satellite 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Instructions",
+        "info_text":"Dans la zone blanche, vous pouvez saisir:\n\n • La période d'envoi des données de température et de distance.\n\n • L'angle de rotation souhaité pour le satellite.\n\n • Une température maximale (l'alarme bleue retentira si elle est dépassée 3 fois).\n\n • Un commentaire qui apparaîtra dans le journal des événements.\n\n Selon les données saisies, vous devrez d'abord écrire les commandes correspondantes, suivies d'un espace:\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     },
     "Deutsch": {
         "title": "Seriellmonitor",
@@ -1018,7 +1005,7 @@ TRANSLATIONS = {
         "media_earth": "Erd Mittel",
         "view_events": "Ereignisse anzeigen",
         "polar_title": "Ultraschall-Radar",
-        "placeholder": "Geben Sie die Periode für Temperatur/Feuchte oder Abstand ein",
+        "placeholder": "Hier schreiben",
         "temp_plot_title": "Temperaturdiagramm",
         "hum_plot_title": "Feuchtigkeitsdiagramm",
         "temp_ylabel": "Temperatur (°C)",
@@ -1029,10 +1016,12 @@ TRANSLATIONS = {
         "current_point": "Aktueller Punkt",
         "orbit_label": "Satellitenbahn",
         "last_point_label": "Aktueller Satellit",
-        "3d_title": "Satellitenbahn 3D (Matplotlib)",
+        "3d_title": "Satellitenbahn 3D",
         "x_label": "X (m)",
         "y_label": "Y (m)",
-        "z_label": "Z (m)"
+        "z_label": "Z (m)",
+        "info_title":"Anleitung",
+        "info_text":"Im weißen Feld unten können Sie Folgendes eingeben: \n\n • Den Zeitraum, in dem die Temperatur- und Entfernungsdaten gesendet werden.\n\n • Den gewünschten Drehwinkel des Satelliten.\n\n • Eine maximale Temperatur (der blaue Alarm ertönt, wenn diese dreimal überschritten wird). \n\n • Einen Kommentar, der im Ereignisprotokoll erscheint.\n\n Je nach den eingegebenen Daten müssen Sie zuerst die entsprechenden Befehle und anschließend ein Leerzeichen eingeben.\n\n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
     }
 }
 
@@ -1047,7 +1036,6 @@ def update_texts():
             pass
 
         tituloLabel.config(text=t["title"])
-        frame_grafica.config(text=t["real_time_graph"])
         frame_grafica_3d.config(text=t["graph_3d"])
         IniciarButton.config(text=t["start"])
         PararButton.config(text=t["stop"])
@@ -1055,6 +1043,9 @@ def update_texts():
         PararButtonPolar.config(text=t["stop"])
         ReanudarButtonPolar.config(text=t["resume"])
         VerEventosButton.config(text=t["view_events"])
+        frame_info.config(text=t["info_title"])
+        lbl_info.config(text=t["info_text"])
+
         # left toggle button text depends on current graph mode
         if Grafica_izquierda == "Temperatura":
             cambiarButtonizquierda.config(text=t["show_humidity"])
@@ -1098,6 +1089,8 @@ def update_texts():
         ax.set_xlabel(t["samples_xlabel"])
         # update polar/cart legend labels
         try:
+            linea_polar.set_label(t["dist_label"])
+            beam_polar.set_label(t["beam_label"])
             punt_polar.set_label(t["current_point"])
             polar_ax.legend()
         except Exception:
@@ -1243,7 +1236,7 @@ def actualiza(posx, posy, posz):
                 cart_ax.set_ylim(-new_ylim, new_ylim)
     canvas_polar.draw_idle()
 
-# --- Update 3D Orbit Plot (Matplotlib) ---
+# --- Update 3D Orbit Plot ---
 def actualiza_grafica_3d():
     """Actualiza y muestra el gráfico 3D de Matplotlib con el rastro de la órbita y la esfera de la Tierra."""
     t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
@@ -1251,8 +1244,8 @@ def actualiza_grafica_3d():
     
     # 0. Dibuixar l'Esfera de la Terra
     # Generar la malla de punts per a l'esfera de radi R_EARTH
-    u_sphere = np.linspace(0, 2 * np.pi, 20)
-    v_sphere = np.linspace(0, np.pi, 20)
+    u_sphere = np.linspace(0, 2 * np.pi, 60)
+    v_sphere = np.linspace(0, np.pi, 60)
     x_earth_sphere = R_EARTH * np.outer(np.cos(u_sphere), np.sin(v_sphere))
     y_earth_sphere = R_EARTH * np.outer(np.sin(u_sphere), np.sin(v_sphere))
     z_earth_sphere = R_EARTH * np.outer(np.ones(np.size(u_sphere)), np.cos(v_sphere))
@@ -1260,6 +1253,8 @@ def actualiza_grafica_3d():
     # Dibuixar l'esfera
     ax_3d.plot_surface(x_earth_sphere, y_earth_sphere, z_earth_sphere, 
                        color='blue', alpha=0.3, edgecolor='none', label='Earth')
+    
+    ax_3d.set_box_aspect([1, 1, 1]) 
     
     if not orbit_trail_3d:
         # Configuració inicial d'eixos si no hi ha dades
@@ -1358,10 +1353,10 @@ input_user = StringVar()
 def set_placeholder(event=None):
     try:
         t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
-        placeholder_text = t.get("placeholder", "Escribe el periodo de temperatura y humedad o el periodo de la distancia")
+        placeholder_text = t.get("placeholder", "Escribe aquí:")
     except Exception:
         # TRANSLATIONS may not be defined yet; use a safe default
-        placeholder_text = "Escribe el periodo de temperatura y humedad o el periodo de la distancia"
+        placeholder_text = "Escribe aquí:"
     if Texto.get() == "":
         Texto.insert(0, placeholder_text)
         Texto.config(fg="grey")
@@ -1369,9 +1364,9 @@ def set_placeholder(event=None):
 def clear_placeholder(event=None):
     try:
         t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
-        placeholder_text = t.get("placeholder", "Escribe el periodo de temperatura y humedad o el periodo de la distancia")
+        placeholder_text = t.get("placeholder", "Escribe aquí:")
     except Exception:
-        placeholder_text = "Escribe el periodo de temperatura y humedad o el periodo de la distancia"
+        placeholder_text = "Escribe aquí:"
     if Texto.get() == placeholder_text:
         Texto.delete(0, "end")
         Texto.config(fg="black")
@@ -1398,8 +1393,8 @@ ReanudarButton.grid(row=2, column=0, padx=5, pady=5)
 cambiarButtonizquierda.grid(row=3, column=0, padx=5, pady=5)
 cambiarmediaButton.grid(row=4, column=0, padx=5, pady=5)
 
-PararButtonPolar = Button(frame_botones_dos, text ="Parar",bg ='lightblue',fg ="black",command =PararDist, **boton_style)
-ReanudarButtonPolar = Button(frame_botones_dos, text="Reanudar", bg='lightyellow', fg="black", command=ReanudarDist, **boton_style)
+PararButtonPolar = Button(frame_botones_dos, text ="Parar",bg ='lightblue',fg ="black",command =nada, **boton_style)
+ReanudarButtonPolar = Button(frame_botones_dos, text="Reanudar", bg='lightyellow', fg="black", command=nada, **boton_style)
 cambiarButtonderecha = Button(frame_botones_dos, text="Mostrar Posicion", bg='lightgreen', fg="black", command=cambiar_modo_derecha, **boton_style)
 # Replace IdiomaButton creation with a proper command and initial label showing the next language
 next_idx = (LANGUAGES.index(Idioma) + 1) % len(LANGUAGES) if Idioma in LANGUAGES else 0
@@ -1429,7 +1424,7 @@ canvas = FigureCanvasTkAgg(fig, master=frame_grafica)
 canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
 # --- Right graph (polar or position) ---
-frame_grafica_polar = LabelFrame(window, bg="white", bd=2, text="Gráfica en tiempo real", font=("Arial", 11))
+frame_grafica_polar = LabelFrame(window, bg="white", bd=2,)
 frame_grafica_polar.grid(row=1, column=2, padx=10, pady=10, sticky="nsew")
 frame_grafica_polar.rowconfigure(0, weight=1)
 frame_grafica_polar.columnconfigure(0, weight=1)
@@ -1461,9 +1456,9 @@ cart_ax.set_ylim(-lim, lim)
 cart_ax.set_aspect('equal', 'box')
 
 # initial artists (polar mode)
-linea_polar, = polar_ax.plot(np.radians(np.arange(0,181)), distancies, lw=2)
+linea_polar, = polar_ax.plot(np.radians(np.arange(0,181)), distancies, lw=2, label="Distancia")
 punt_polar, = polar_ax.plot([], [], "go", markersize=8, label="haz actual")
-beam_polar, = polar_ax.plot([], [], lw=3, color='red', label="Distancia")
+beam_polar, = polar_ax.plot([], [], lw=3, label="BEAM")
 polar_ax.legend(loc='upper right')
 
 # initial artists (cartesian mode)
@@ -1484,7 +1479,7 @@ canvas_polar.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 # --- Bottom Graph (3D Orbit) ---
 frame_grafica_3d = LabelFrame(window, bg="white", bd=2, text="Gráfica de Órbita 3D", font=("Arial", 11))
 # Ubicación: Fila 3, columnas 0 a 3 (ocupa todo el ancho inferior)
-frame_grafica_3d.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky="nsew")
+frame_grafica_3d.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 frame_grafica_3d.rowconfigure(0, weight=1)
 frame_grafica_3d.columnconfigure(0, weight=1)
 
@@ -1495,6 +1490,19 @@ ax_3d = fig_3d.add_subplot(111, projection='3d')
 
 canvas_3d = FigureCanvasTkAgg(fig_3d, master=frame_grafica_3d)
 canvas_3d.get_tk_widget().grid(row=0, column=0, sticky="nsew")
+
+
+frame_info = LabelFrame(window, bg="white", bd=2, text="Instrucciones:", font=("Arial", 11))
+frame_info.grid(row=3, column=3, padx=10, pady=10, sticky="nsew")
+
+text_informatiu = "En la caja blanca de debajo de todo, puedes introducir:\n\n • El período en el que se envían los datos de temperatura y distancia.\n\n • El ángulo que quieres que gire el satélite.\n\n • Una temperatura máxima (la alarma azul sonará si se supera 3 veces). \n\n • Un comentario que aparece en el registro de eventos \n\n Según el dato que introduzcas, deberás escribir antes los respectivos comandos seguidos por un espacio: \n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
+lbl_info = Label(frame_info, text=text_informatiu, bg="light pink", font=("Arial", 12), justify="center", anchor="nw", wraplength=250)
+lbl_info.pack(padx=15, pady=15, fill="both", expand=True)
+
+window.columnconfigure(0, weight=1)
+window.columnconfigure(1, weight=1)
+window.columnconfigure(2, weight=1)
+window.columnconfigure(3, weight=0) # La capseta de text no s'estira tant com gràfica
 
 # Llamada inicial para establecer los límites del eje 3D
 actualiza_grafica_3d()
