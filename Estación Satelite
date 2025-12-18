@@ -51,8 +51,8 @@ double orbY = 0;
 double orbZ = 0;
 
 // -------------------- DATA SENDING -------------------
-int Pausa2 = 0;
-int Pausa3 = 0;
+int Pausa2 = 1;
+int Pausa3 = 1;
 int modo_Media_temperatura = 0;
 float maximo_temp =30;
 int contador;
