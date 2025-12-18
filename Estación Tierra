@@ -92,7 +92,6 @@ void setup() {
   //--------------------------------------------------
   //      2. Condicion de la alarma de tiempo
   //--------------------------------------------------
-  //Serial.print("1:"); Serial.println(aTiempo);
   if(mySerial.available() > 0 && millis()< nextFalloTiempo && aTiempo == 1){
     aTiempo = 0;
   } else if (mySerial.available() == 0 && millis() > nextFalloTiempo && aTiempo == 0) {
