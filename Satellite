@@ -12,7 +12,7 @@
 // ---------------- ENUM SERVOMODE ----------------
 
 bool servoMode = 1;
-// - DHT SENSOR --------------------
+// ------------------ DHT SENSOR --------------------
 #define DHTPIN 2
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
@@ -71,8 +71,6 @@ float distance;
 int valX = 0;
 int joyX = A0;
 float velMotor = 0;
-
-//nose
 float t, h;
 
 //Errores
@@ -99,20 +97,20 @@ SoftwareSerial mySerial(10, 11);  // RX, TX
 // -------------------- FUNCIONS ------------------------
 float leerDistancia() {
   long duracion;
-  float distancia = -1;
+  float distancia = -1; // Valor por defecto en caso de fallo
 
   for (int intento = 0; intento < 3; intento++) {
-    digitalWrite(trigPin, LOW);
+    digitalWrite(trigPin, LOW); // Asegurarse de que el pin TRIG esté bajo
     delayMicroseconds(3);
-    digitalWrite(trigPin, HIGH);
+    digitalWrite(trigPin, HIGH); // Enviar pulso ultrasónico
     delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
+    digitalWrite(trigPin, LOW); // Detener el pulso
 
     duracion = pulseIn(echoPin, HIGH, 30000);
     if (duracion > 0) {
       distancia = duracion * 0.0343 / 2.0;
       if (distancia > 2 && distancia < 400) {
-        return distancia;
+        return distancia; // Retorna la distancia válida
       }
     }
   }
@@ -127,8 +125,8 @@ void setup() {
   Serial.begin(9600);
   mySerial.begin(9600);
 
-  nextMillis1 = millis() + interval1;
-  nextMillis2 = millis() + interval2;
+  nextMillis1 = millis() + interval1; // Sensor DHT
+  nextMillis2 = millis() + interval2; // Ultrasonido
   nextImpresion = millis() + intervaloImpresion;
   contador =0;
 
@@ -160,12 +158,12 @@ void loop() {
     h = dht.readHumidity();
     t = dht.readTemperature();
 
-    if (isnan(h) || isnan(t)) {
+    if (isnan(h) || isnan(t)) { // Error en la lectura
       fallo_TyH = true;
-    } else {
+    } else { // Lectura correcta
       fallo_TyH = false;
       nextTimeoutHT = millis() + 5000;
-      if (modo_Media_temperatura == 1 || modo_Media_temperatura == 0) {
+      if (modo_Media_temperatura == 1 || modo_Media_temperatura == 0) { // Calculo de la media móvil
         sumaTemp -= bufferTemp[idxTemp];
         bufferTemp[idxTemp] = t;
         sumaTemp += t;
@@ -181,7 +179,7 @@ void loop() {
       mySerial.print("HUM:");
       mySerial.println(h);
 
-      if (modo_Media_temperatura == 1) {
+      if (modo_Media_temperatura == 1) { // Enviar media si está activada
         mySerial.println("MED:");
         mySerial.println(mediaTemp);
         mySerial.print("MEDI:");
@@ -194,31 +192,29 @@ void loop() {
 
       i++;
     }
-    if (fallo_TyH == true && millis()>nextTimeoutHT){
+    if (fallo_TyH == true && millis()>nextTimeoutHT){ // Si ha habido un fallo durante más de 5 segundos
         mySerial.print("Ar:1");
         Ar = 1;
-      } else if (Ar == 1 && fallo_TyH == false){
+      } else if (Ar == 1 && fallo_TyH == false){ // Si se ha recuperado la lectura
         Ar = 0;
         mySerial.print("Ar:0");
       }
     nextMillis1 = millis() + interval1;
-    Serial.println("---------------");
-    Serial.println(t);
   }
 
 
 
   // --------------------------------------------------
-  //      3. Orbit simulation
+  //      Simulación de la órbita
   // --------------------------------------------------
   unsigned long currentTime = millis();
-  if (currentTime > nextUpdate) {
+  if (currentTime > nextUpdate) { // Actualizar posición orbital
     simulate_orbit(currentTime, 0, 0);
     nextUpdate = currentTime + MILLIS_BETWEEN_UPDATES;
   }
 
   // --------------------------------------------------
-  //      4. CONTROL DEL SERVO
+  //      CONTROL DEL SERVO
   // --------------------------------------------------
 
   if (servoMode == 0) { // MANUAL
@@ -236,35 +232,33 @@ void loop() {
   servoMotor.write(angulo);
 
   // --------------------------------------------------
-  //      5. ULTRASONIC
+  //      ULTRASONIDO
   // --------------------------------------------------
   if (Pausa3 == 0 && millis() >= nextMillis2) {
     distance = leerDistancia();
-    if (distance == -1){
+    if (distance==-1){// fallo en la lectura
         mySerial.println("Ab:1");
-        fallo_ultra = 1;
-    } else if(distance != -1 && fallo_ultra == 1){
+    }
+    else{
         mySerial.println("Ab:0");
-        fallo_ultra = 0;
     }
     mySerial.print("ANG:");
     mySerial.println(angulo);
     mySerial.print("DIST:");
     mySerial.println(distance);
-    if (distance < 10 && distance != -1){
-      mySerial.println("Av:1");
-      fallo_cerca = 1;
-    } else if (distance >=10 && fallo_cerca == 1 && distance != -1){
-      mySerial.print("Av:0");
-      fallo_cerca = 0;
+    if (distance<10){// alarma de cercania
+        mySerial.println("Av:1");
+    }
+    else{
+        mySerial.println("Av:0");
     }
     nextMillis2 = millis() + 1000;
   }
 
   // --------------------------------------------------
-  //      6. ORBIT DATA
+  //      Información de la órbita
   // --------------------------------------------------
-  if (Pausa2 == 0 && millis() >= nextMillis3) {
+  if (Pausa2 == 0 && millis() >= nextMillis3) { // Enviar posición orbital
     mySerial.print("X:");
     mySerial.println(orbX);
     mySerial.print("Y:");
@@ -282,30 +276,30 @@ void loop() {
     if (c == '\n') {
       rxBuffer.trim();
 
-      int colon = rxBuffer.indexOf(':');
+      int colon = rxBuffer.indexOf(':'); // Buscar el primer ':'
       if (colon == -1) {
         rxBuffer = "";
         break;
       }
 
-      String label = rxBuffer.substring(0, colon);
-      String valueStr = rxBuffer.substring(colon+1 );
+      String label = rxBuffer.substring(0, colon); // Etiqueta antes de ':'
+      String valueStr = rxBuffer.substring(colon+1 ); // Valor después de ':'
       valueStr.trim();
 
       if (label == "AUT") {
-        servoMode = valueStr.toInt();
+        servoMode = valueStr.toInt(); // 0 = MANUAL, 1 = RASTREO
       }
 
       else if (label == "5") {
-        angulo = constrain(valueStr.toInt(), 0, 180);
+        angulo = constrain(valueStr.toInt(), 0, 180); // Establecer ángulo en modo MANUAL
         servoMode = 0;
       }
       else if (label == "6") {
-        maximo_temp = valueStr.toInt();
+        maximo_temp = valueStr.toInt(); // Establecer temperatura máxima para alarma de media
       }
 
       else if (label == "1") {
-        int m = valueStr.toInt();
+        int m = valueStr.toInt(); // Pausa de sensores
         Serial.println(m);
         if (m==0)
           Pausa2 = 0;
@@ -321,15 +315,15 @@ void loop() {
       }
 
       else if (label == "2") {
-        modo_Media_temperatura = valueStr.toInt();
+        modo_Media_temperatura = valueStr.toInt(); // Activar/desactivar media móvil
       }
 
       else if (label == "3") {
-        interval1 = valueStr.toInt() * 1000UL;
+        interval1 = valueStr.toInt() * 1000UL; // Intervalo sensor DHT
       }
 
       else if (label == "4") {
-        interval2 = valueStr.toInt() * 1000UL;
+        interval2 = valueStr.toInt() * 1000UL; // Intervalo sensor ultrasonido
       }
 
       rxBuffer = "";
@@ -337,10 +331,11 @@ void loop() {
 
     else {
       rxBuffer += c;
-      if (rxBuffer.length() > 50) rxBuffer = "";
+      if (rxBuffer.length() > 50) rxBuffer = ""; // Evitar desbordamiento
     }
   }
-  delay(10);
+  Serial.print(distance);
+  Serial.println("---------");
 }
 
 
