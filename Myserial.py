@@ -17,7 +17,7 @@ from collections import deque
 import datetime
 import tkinter.font as tkfont
 
-# Ensure matplotlib can render CJK (Chinese) and avoid minus-sign issues
+# --- PERMITE CARACTERES EN CHINO ---
 matplotlib.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans", "Arial Unicode MS"]
 matplotlib.rcParams["font.family"] = "sans-serif"
 matplotlib.rcParams["axes.unicode_minus"] = False
@@ -33,18 +33,18 @@ running = False
 ventana_abierta = True
 
 
-# Time series
+# Varaibles en funcióm del tiempo
 temperaturas = []
 humedades = []
 temperaturas_medias = []
 eje_x = []
 posicionx_vals = []
 posiciony_vals = []
-# Last-known position components (allow X and Y to arrive on different lines)
+#  Las últimas posiciones recibidas
 last_posx = None
 last_posy = None
 last_posz = None
-# Flags to indicate which components have been updated since the last append
+# Indicia si se ha recibido una actualización de posición en la iteración actual
 last_posx_updated = False
 last_posy_updated = False
 last_posz_updated = False
@@ -54,40 +54,39 @@ j = 0
 
 Grafica_izquierda = "Temperatura"   # "Temperatura" or "Humedad"
 Grafica_derecha = "Distancia"       # "Distancia" or "Posicion"
-Idioma = "Castellano" # Castellano Catala English o ...
+Idioma = "Castellano" # Castellano Catala English ...
 Automatico = "Activado"  # Activado o Desactivado
 
-# Variables media temp
+# Variables media temperatura
 modo_Media_temperatura=0
 N = 10
-buffer_temp = deque(maxlen=N)  # keep the last N temperature samples for median
+buffer_temp = deque(maxlen=N)  # Buffer circular para últimas N temperaturas
 Temperatura_media = None
-maximo_temp = 10
+maximo_temp = 25
 
-# Small helpers / constants
-R_EARTH = 6371000  # meters
-ALTITUDE = 400000.0  # Altitud (metres)
+# Constantes para orbita
+R_EARTH = 6371000
+ALTITUDE = 400000.0
 ORBIT_RADIUS = R_EARTH + ALTITUDE
 
-# Debugging flag for trail handling
-DEBUG_TRAIL = False  # Set to True to enable verbose debug prints
+# Variable de debug (activada manualmente)
+DEBUG_TRAIL = False  # Poner como True para debug detallado de checksum
 
-# Clean terminal output: show only a single tidy data line per iteration and
-# print errors prefixed with [ERR]. Set to False to keep full verbose debug.
+# Solo mostrar líneas limpias de resumen (Activada manualmente)
 CLEAN_OUTPUT = True
 
-def _fmt(v, precision=2):
+def _fmt(v, precision=2): # Hayula para formatear valores numéricos con precisión
     try:
-        if v is None:
+        if v is None: # Nulos se escriben como "-"
             return "-"
-        if isinstance(v, (int,)):
+        if isinstance(v, (int,)): # Enteros sin decimales
             return str(v)
-        return f"{float(v):.{precision}f}"
+        return f"{float(v):.{precision}f}" # Flotantes con decimales con precisión dada
     except Exception:
         return str(v)
 
-def print_clean_line(temperatura, humedad, dist, ang, last_posx, last_posy, last_posz, checksum_detected=None, checksum_ok=None):
-    """Print a compact summary line of the most relevant variables."""
+def print_clean_line(temperatura, humedad, dist, ang, last_posx, last_posy, last_posz, checksum_detected=None, checksum_ok=None): # Imprime una línea compacta con resumen de las variables más relevantes
+    # Dada una variable y un valor de precisión
     t = _fmt(temperatura, 2)
     h = _fmt(humedad, 1)
     d = _fmt(dist, 2)
@@ -95,17 +94,14 @@ def print_clean_line(temperatura, humedad, dist, ang, last_posx, last_posy, last
     x = _fmt(last_posx, 2)
     y = _fmt(last_posy, 2)
     z = _fmt(last_posz, 2)
-    if checksum_detected is None:
+    if checksum_detected is None: # No se detectó checksum
         chk = "-"
     else:
-        if checksum_ok is None:
+        if checksum_ok is None: # No se pudo verificar
             chk = "DET"
-        else:
+        else: 
             chk = "OK" if checksum_ok else "FAIL"
-    print(f"[DATA] T={t}C H={h}% D={d} A={a} X={x} Y={y} Z={z} CHK={chk}")
-
-# Linear ramp for temperature median display: scale median from 0 to full value over N samples
-# (displayed_median = median(buffer_temp) * min(len(buffer_temp), N) / N)
+    print(f"[DATA] T={t}C H={h}% D={d} A={a} X={x} Y={y} Z={z} CHK={chk}") # Línea resumen
 
 # Paràmetres del Dibuix
 MAX_POINTS = 500  # Nombre màxim de punts per dibuixar la trajectòria de l'òrbita
@@ -113,7 +109,7 @@ scale_factor = ORBIT_RADIUS / 1.5 # Escala visual: centre el rang de la gràfica
 refresh_interval = 2 # Actualitza la gràfica cada 2 segons (ajusta si cal)
 regex_position = re.compile(r"Position: \(X: ([\d\.-]+) m, Y: ([\d\.-]+) m, Z: ([\d\.-]+) m\)")
 
-# Compute checksum candidates from parsed numeric fields or original line text
+# --- CHECKSUM FUNCTIONS ---
 def compute_checksum_candidates(values, line_text=None):
     """Return a set of integer checksum candidates (0-255) computed from values.
     Strategies included: sum of rounded ints, xor of rounded ints, ASCII-sum of comma-joined reprs, ASCII-sum of original line (if available)."""
@@ -142,8 +138,7 @@ def compute_checksum_candidates(values, line_text=None):
             pass
     return candidates
 
-def verify_checksum(expected, values, line_text=None):
-    """Return True if expected matches any computed candidate."""
+def verify_checksum(expected, values, line_text=None):  # verifica el checksum esperado contra los candidatos calculados
     try:
         cands = compute_checksum_candidates(values, line_text)
         if DEBUG_TRAIL:
@@ -159,12 +154,12 @@ orbit_trail_3d = deque(maxlen=MAX_ORBIT_POINTS)
 # --- EVENTOS ---
 TIPOS_EVENTO = ["comando", "alarma", "observacion"]
 
-def registrar_evento(tipo, descripcion):
+def registrar_evento(tipo, descripcion): # Registra un evento en el archivo eventos.txt
     """
     tipo: 'comando', 'alarma', 'observacion'
     descripcion: texto libre
     """
-    if tipo not in TIPOS_EVENTO:
+    if tipo not in TIPOS_EVENTO: # Si tipo de evento no se reconoce, avisa
         print(f"[WARN] Tipo de evento desconocido: {tipo}")
         return
 
@@ -182,7 +177,7 @@ def registrar_evento(tipo, descripcion):
         print("Error al guardar evento:", e)
 
 
-def cargar_eventos():
+def cargar_eventos(): # Carga eventos desde el archivo eventos.txt
     eventos = []
     try:
         with open("eventos.txt", "r") as f:
@@ -202,7 +197,7 @@ def cargar_eventos():
     return eventos
 
 
-def filtrar_eventos(eventos, dia=None, tipo=None):
+def filtrar_eventos(eventos, dia=None, tipo=None): # Filtra eventos por día y tipo
     filtrados = eventos
     if dia:
         filtrados = [e for e in filtrados if e["dia"] == dia]
@@ -210,8 +205,8 @@ def filtrar_eventos(eventos, dia=None, tipo=None):
         filtrados = [e for e in filtrados if e["tipo"] == tipo]
     return filtrados
 
-def abrir_ventana_eventos():
-    eventos = cargar_eventos()
+def abrir_ventana_eventos(): # Abre una ventana para mostrar y filtrar eventos
+    eventos = cargar_eventos() # Cargar eventos desde archivo
 
     vent = Toplevel(window)
     vent.title("Registro de eventos")
@@ -236,33 +231,31 @@ def abrir_ventana_eventos():
     text = Text(vent, wrap="word")
     text.pack(fill="both", expand=True, padx=5, pady=5)
 
-    scrollbar = Scrollbar(text, command=text.yview)
+    scrollbar = Scrollbar(text, command=text.yview)  # Barra de desplazamiento
     scrollbar.pack(side="right", fill="y")
     text.configure(yscrollcommand=scrollbar.set)
 
-    def refrescar():
+    def refrescar(): # Refresca la lista de eventos según los filtros
         # Recargar SIEMPRE desde archivo
         eventos = cargar_eventos()
 
-        dia_filtro = entry_dia.get().strip()
+        dia_filtro = entry_dia.get().strip() # Obtener día de filtro
         dia_filtro = dia_filtro if dia_filtro else None
 
-        tipo_filtro = tipo_var.get()
+        tipo_filtro = tipo_var.get() # Obtener tipo de filtro
         if tipo_filtro == "todos":
             tipo_filtro = None
 
         ev_filtrados = filtrar_eventos(eventos, dia=dia_filtro, tipo=tipo_filtro)
 
         text.delete("1.0", END)
-        if not ev_filtrados:
+        if not ev_filtrados: # No hay eventos para este filtro
             text.insert(END, "No hay eventos para este filtro.\n")
             return
 
-        for e in ev_filtrados:
+        for e in ev_filtrados: # Mostrar eventos filtrados
             linea = f"{e['dia']} {e['hora']} [{e['tipo']}] {e['descripcion']}\n"
             text.insert(END, linea)
-
-
 
     # Botón de aplicar filtro
     boton_filtrar = Button(frame_filtros, text="Aplicar filtro", command=refrescar)
@@ -271,8 +264,8 @@ def abrir_ventana_eventos():
     # Cargar inicialmente todos
     refrescar()
 
-# --- GUI functions ---
-def Parar():
+# Funciones de control de comunicación
+def Parar(): # Detiene la comunicación serial de la temperatura
     global running
     if mySerial:
         try:
@@ -283,7 +276,7 @@ def Parar():
     running = False
     print("⏸ Comunicación detenida")
 
-def Reanudar():
+def Reanudar(): # Reanuda la comunicación serial de la temperatura
     global running
     if mySerial:
         try:
@@ -294,7 +287,7 @@ def Reanudar():
     running = True
     print("▶ Comunicación reanudada")
 
-def ReanudarDist():
+def ReanudarDist(): # Reanuda la comunicación serial de la distancia
     global running
     if mySerial:
         try:
@@ -303,7 +296,7 @@ def ReanudarDist():
         except Exception as e:
             print("Serial write error:", e)
     
-def PararDist():
+def PararDist(): # Detiene la comunicación serial de la distancia
     global running
     if mySerial:
         try:
@@ -312,28 +305,7 @@ def PararDist():
         except Exception as e:
             print("Serial write error:", e)
     
-def automatic():
-    global Automatico
-    if Automatico == "Activado":
-        Automatico = "Desactivado"
-        if mySerial:
-            try:
-                mySerial.write(b'AUT:0')
-                registrar_evento("comando", "Modo automático desactivado")
-                AutomaticButton.config(text="Automatico")
-            except Exception as e:
-                print("Serial write error:", e)
-    else:
-        Automatico = "Activado"
-        if mySerial:
-            try:
-                mySerial.write(b'AUT:1')
-                registrar_evento("comando", "Modo automático activado")
-                AutomaticButton.config(text="Manual")
-            except Exception as e:
-                print("Serial write error:", e)
-    
-def Enter_pressed(event=None):
+def Enter_pressed(event=None): # Permite al usuario introducir comandos de texto
     """Parse user text for 'periodo temperatura N' or 'periodo distancia N' (fuzzy)."""
     global periodo_temp, periodo_dist, angulo2, maximo_temp
     user_text = Texto.get().strip()
@@ -346,7 +318,7 @@ def Enter_pressed(event=None):
         Texto.delete(0, "end")
         return
     
-    user_lower = user_text = Texto.get().lower().strip()
+    user_lower = user_text = Texto.get().lower().strip() # Texto en minúsculas para comparación
     numeros = re.findall(r"\d+", user_text)
     numero = int(numeros[0]) if numeros else None
     if numero is None:
@@ -354,11 +326,12 @@ def Enter_pressed(event=None):
         Texto.delete(0, "end")
         return
 
+    # --- COMANDOS DE CONFIGURACIÓN ---
     comandos = ["periodo temperatura", "periodo distancia","Angulo","Maximo temperatura"]
     match = difflib.get_close_matches(user_lower, comandos, n=1, cutoff=0.4)
     if match:
         cmd = match[0]
-        if cmd == "periodo temperatura":
+        if cmd == "periodo temperatura": # Cambia el periodo de muestreo de temperatura
             periodo_temp = numero
             print('3:'+str(numero))
             if mySerial:
@@ -367,7 +340,7 @@ def Enter_pressed(event=None):
                     registrar_evento("comando", f"Periodo de temperatura cambiado a {periodo_temp}")
                 except Exception as e:
                     print("Serial write error:", e)
-        elif cmd == "periodo distancia":
+        elif cmd == "periodo distancia": # Cambia el periodo de muestreo de distancia
             periodo_dist = numero
             print('4:'+str(numero))
             if mySerial:
@@ -376,7 +349,7 @@ def Enter_pressed(event=None):
                     registrar_evento("comando", f"Periodo de distancia cambiado a {periodo_dist}")
                 except Exception as e:
                     print("Serial write error:", e)
-        elif cmd == "Angulo":
+        elif cmd == "Angulo":  # Cambia el ángulo de medición
             angulo2 = numero
             print('5:'+str(numero))
             if mySerial:
@@ -385,7 +358,7 @@ def Enter_pressed(event=None):
                     registrar_evento("comando", f"Angulo cambiado a {angulo2}")
                 except Exception as e:
                     print("Serial write error:", e)
-        elif cmd == "Maximo temperatura":
+        elif cmd == "Maximo temperatura": # Cambia el máximo de temperatura permitido
             maximo_temp = numero
             print('6:'+str(numero))
             if mySerial:
@@ -403,20 +376,20 @@ def IniciarComunicacion():
     running = True
     if mySerial:
         try:
-            mySerial.write(b'1:4')
+            mySerial.write(b'1:4') # Comando para iniciar la comunicación de temperatura y distancia
         except Exception as e:
             print("Serial write error:", e)
     threadRecepcion = threading.Thread(target=IniciarComunicacion2, daemon=True)
     threadRecepcion.start()
 
-def checksum(mensaje):
+def checksum(mensaje):  # Calcula el checksum sumando los valores ASCII de los caracteres del mensaje
     sumaa = 0
     for i in mensaje:
         sumaa = sumaa+ord(i)
     sumaa = sumaa % 256
     return sumaa
 
-def Comprueva(frase,respuesta):
+def Comprueva(frase,respuesta): # Comprueba si el checksum del mensaje coincide con la respuesta esperada
     sumaa = 0
     for i in frase:
         sumaa = sumaa+ord(i)
@@ -426,15 +399,15 @@ def Comprueva(frase,respuesta):
     else:
         return 0
 
-def IniciarComunicacion2():
+def IniciarComunicacion2(): # Hilo de recepción de datos seriales
     print("Iniciado")
     global i, ventana_abierta, distancies, punt, linea, j, buffer_temp, Temperatura_media, last_posx, last_posy, last_posz, last_posx_updated, last_posy_updated, last_posz_updated
-    Temperatura_media = np.nan
+    Temperatura_media = np.nan # Inicializa la temperatura media como NaN
     angtemp = None
     disttemp = None
     while ventana_abierta:
         if running and mySerial.in_waiting > 0:
-            temperatura = None
+            temperatura = None # Inicializa variables de datos
             humedad = None
             dist = None
             ang = None
@@ -447,21 +420,14 @@ def IniciarComunicacion2():
                 line_bytes = mySerial.readline()
                 if not line_bytes:
                     continue
-
-                # Attempt to detect and verify checksum from raw bytes.
-                # Supported formats we TRY to detect:
-                #  - ASCII hex suffix separated by '*' : <data>*<HEXCS>
-                #  - Binary trailing checksum byte: <data><CSUM_BYTE> where CSUM_BYTE == sum(data) % 256
-                # We treat a binary trailing checksum as *present* only when the last byte is non-printable
-                # (to avoid mis-detecting ordinary ASCII characters as a checksum).
-                stripped = line_bytes.rstrip(b"\r\n")
+                stripped = line_bytes.rstrip(b"\r\n") # Elimina saltos de línea y retornos de carro
                 checksum_ok = None
                 checksum_detected = False
                 checksum_failed_raw = False
                 fallback_expected = None
                 data_bytes = stripped
 
-                if DEBUG_TRAIL:
+                if DEBUG_TRAIL: # Muestra información compleja debug si está activado
                     lb = stripped[-1] if len(stripped) > 0 else None
                     try:
                         lb_hex = hex(lb) if lb is not None else None
@@ -470,39 +436,39 @@ def IniciarComunicacion2():
                     star_idx_preview = stripped.rfind(b"*")
                     print(f"[CHK] detection-hint len={len(stripped)}, star_idx_preview={star_idx_preview}, last_byte={lb_hex}, last_printable={(32 <= lb <= 126) if lb is not None else None}")
 
-                # 1) Try ASCII hex suffix after '*'
+                # 1) Intenta detectar checksum ASCII hexadecimal al final (e.g., "*AB")
                 star_idx = stripped.rfind(b"*")
                 if star_idx != -1 and star_idx < len(stripped)-1:
                     suffix = stripped[star_idx+1:]
                     try:
-                        expected = int(suffix.decode('ascii'), 16)
-                        csum = sum(stripped[:star_idx]) % 256
+                        expected = int(suffix.decode('ascii'), 16) # Convierte el sufijo hexadecimal a entero
+                        csum = sum(stripped[:star_idx]) % 256 # Calcula checksum sumando bytes antes del '*'
                         checksum_detected = True
                         fallback_expected = expected
-                        if csum == expected:
+                        if csum == expected: # Verifica si coincide
                             checksum_ok = True
                             data_bytes = stripped[:star_idx]
                             if DEBUG_TRAIL:
-                                print(f"[CHK] hex csum OK: computed=0x{csum:02X} suffix=0x{expected:02X}")
-                        else:
+                                print(f"[CHK] hex csum OK: computed=0x{csum:02X} suffix=0x{expected:02X}") # Muestra info debug
+                        else: # No coincide
                             checksum_ok = False
                             checksum_failed_raw = True
                             if DEBUG_TRAIL:
-                                print(f"[CHK] hex csum FAIL: computed=0x{csum:02X} suffix=0x{expected:02X}")
+                                print(f"[CHK] hex csum FAIL: computed=0x{csum:02X} suffix=0x{expected:02X}") # Muestra info debug
                     except Exception:
                         # Not a valid hex suffix
                         checksum_detected = False
 
-                # 2) If no ASCII hex checksum detected, consider binary trailing checksum if last byte is non-printable
+                # 2) Si no se detectó checksum ASCII, intenta detectar checksum binario simple (último byte)
                 if not checksum_detected and len(stripped) >= 2:
                     last_byte = stripped[-1]
-                    # Treat as binary checksum only when last_byte is non-printable control-like byte
+                    # Trata el último byte como checksum si no es imprimible ASCII
                     if last_byte < 32 or last_byte > 126:
                         candidate = stripped[:-1]
                         checksum_detected = True
                         fallback_expected = last_byte
                         try:
-                            csum_sum = sum(candidate) % 256
+                            csum_sum = sum(candidate) % 256 # Suma simple de bytes
                             if csum_sum == last_byte:
                                 checksum_ok = True
                                 data_bytes = candidate
@@ -526,31 +492,30 @@ def IniciarComunicacion2():
                         except Exception:
                             checksum_ok = False
 
-                # If no checksum was detected, show a debug hint
+                # Si no se detectó ningún checksum enseñar en debug
                 if not checksum_detected and DEBUG_TRAIL:
                     try:
                         print(f"[CHK] No checksum detected in line: {stripped.hex()}")
                     except Exception:
                         print("[CHK] No checksum detected in line (non-hex display)")
 
-                # If a checksum was detected and failed, skip this line
+                # SI hay checksum y no coincide, descartar línea
                 if checksum_detected and checksum_ok is False:
-                    # If verbose debug is enabled, log raw drop reason; otherwise let fallback/parsed checks handle it.
+                    # Si debug activado, mostrar motivo de descarte
                     if DEBUG_TRAIL:
                         try:
                             print(f"[CHK] Dropping line (checksum mismatch): {stripped.hex()}")
                         except Exception:
                             print("[CHK] Dropping line (checksum mismatch)")
-                    # Allow fallback verification later; do not unconditionally continue here.
                     pass
 
-                # Decode the data bytes to text for parsing (use replacement for undecodable bytes)
+                 # Decodificar línea de bytes a texto
                 try:
                     linea = data_bytes.decode('utf-8', errors='replace').strip()
                 except Exception:
                     linea = data_bytes.decode('latin1', errors='replace').strip()
 
-                # Minimal terminal output: when CLEAN_OUTPUT is enabled, suppress raw byte and raw-line noise
+                # Muestra info debug si está activado
                 if DEBUG_TRAIL:
                     try:
                         print(f"[RAW_BYTES] {line_bytes.hex()}")
@@ -558,12 +523,12 @@ def IniciarComunicacion2():
                         print(f"[RAW_BYTES] {repr(line_bytes)}")
                     print(f"[RAW] {linea}")
 
-                # Reset update flag for this iteration
+                # Reinicializar flags de actualización de posición
                 pos_updated = False
 
-                # 1) Try Position(...) full-line format first
+                # 1) Intentar forma Position: (X: ..., Y: ..., Z: ...)
                 mpos = regex_position.match(linea)
-                if mpos:
+                if mpos: # Coincide con formato Position
                     try:
                         px = float(mpos.group(1))
                         py = float(mpos.group(2))
@@ -571,7 +536,7 @@ def IniciarComunicacion2():
                         last_posx = px
                         last_posy = py
                         last_posz = pz
-                        # mark that both X and Y were updated together
+                        # Marcar como actualizados
                         last_posx_updated = True
                         last_posy_updated = True
                         last_posz_updated = True
@@ -579,29 +544,30 @@ def IniciarComunicacion2():
                         if DEBUG_TRAIL:
                             print(f"[PARSE] Position line -> X={px}, Y={py}, Z={pz}")
                     except Exception as e:
-                        # Position parsing failed: report as an error so the terminal remains informative
+                        # No se pudo parsear posición
                         print(f"[ERR] Position parse failed: {e}")
                 else:
-                    # 2) Try key:value form (e.g., "X: 123.4 m")
+                    # 2) Intentar forma clave:valor
                     if ':' not in linea:
                         if DEBUG_TRAIL:
                             print("[PARSE] Line not key:value and not Position() - ignored")
                         continue
-
+                        
                     prefijo, valor = linea.split(':', 1)
                     try:
                         prefijo = str(prefijo).strip().upper()
-                        # remove units/letters and allow comma decimals
+                        # Quitar caracteres no numéricos del valor
                         valor_clean = re.sub(r'[^0-9\.,-]+', '', valor).replace(',', '.')
                         valor_num = float(valor_clean)
                     except Exception:
                         if DEBUG_TRAIL:
                             print(f"[PARSE] Valor no numérico para '{valor}' (raw: '{valor}')")
                         continue
-
+                        # Asignar valores según prefijo
+                    
                     if prefijo == 'TEMP':
                         temperatura = valor_num
-                        j = j + 1
+                        j = j + 1 # Contador de muestras de temperatura
                     elif prefijo == 'HUM':
                         humedad = valor_num
                     elif prefijo == 'DIST':
@@ -635,14 +601,14 @@ def IniciarComunicacion2():
                         if DEBUG_TRAIL:
                             print(f"[PARSE] Z update -> {valor_num}")
                     elif prefijo in ('CS', 'CHK', 'CHECK', 'CRC', 'SUM', 'CSUM'):
-                        # Expected checksum value provided by Arduino. Try to parse it (support hex like 0xAB).
+                        # Intentar verificar checksum explícito dado por arduino
                         expected = None
                         raw_val = valor.strip()
                         try:
-                            # int(..., 0) will handle 0xNN hex prefixes
+                            # Tomar valor directamente como entero (decimal o hex)
                             expected = int(raw_val, 0)
                         except Exception:
-                            # Try to find a hex token anywhere in the string (e.g., "*AB" or "AB")
+                            # Intenta enccontrar valor hexadecimal en el texto para checksum
                             mhex = re.search(r"([0-9A-Fa-f]{1,2})", raw_val)
                             if mhex:
                                 try:
@@ -650,7 +616,7 @@ def IniciarComunicacion2():
                                 except Exception:
                                     expected = None
                             else:
-                                # Fallback: try numeric extraction and cast
+                                # Intenta limpiar y convertir a float/int
                                 try:
                                     cleaned = re.sub(r'[^0-9\.,-]+', '', raw_val).replace(',', '.')
                                     expected = int(float(cleaned))
@@ -658,21 +624,21 @@ def IniciarComunicacion2():
                                     expected = None
 
                         if expected is not None:
-                            # Build a candidate values list from the numeric variables we know at this moment
+                            # Construir lista de valores actuales para verificar
                             values = []
                             for nm in ('temperatura', 'humedad', 'dist', 'ang', 'last_posx', 'last_posy', 'last_posz'):
                                 try:
-                                    v = locals().get(nm)
+                                    v = locals().get(nm) # Obtener valor local (para _fmt)
                                 except Exception:
                                     v = None
                                 if v is not None:
                                     values.append(v)
 
-                            ok = verify_checksum(expected, values, line_text=linea)
+                            ok = verify_checksum(expected, values, line_text=linea) # Verificar si checksum es correcto
                             if not ok:
-                                # Always report failed explicit checksum fields as errors
+                                # Siempre reportar error de verificación
                                 print(f"[ERR] checksum verification FAILED -> expected=0x{expected:02X}, values={values}")
-                                # Drop this line (invalid checksum)
+                                # Eliminar línea por fallo de checksum
                                 continue
                             else:
                                 if DEBUG_TRAIL:
@@ -683,9 +649,7 @@ def IniciarComunicacion2():
                         if DEBUG_TRAIL:
                             print("[PARSE] Prefijo no reconocido:", prefijo)
                 
-                    # If a raw-byte checksum was detected but raw validation failed, try to
-                    # verify it using the parsed numeric variables (Arduino may compute
-                    # checksum over numeric fields rather than raw bytes).
+                    # Si se detectó checksum pero falló, intentar fallback con valores parseados
                     if checksum_detected and checksum_ok is False and checksum_failed_raw and fallback_expected is not None:
                         values = []
                         for nm in ('temperatura', 'humedad', 'dist', 'ang', 'last_posx', 'last_posy', 'last_posz'):
@@ -696,9 +660,9 @@ def IniciarComunicacion2():
                             if v is not None:
                                 values.append(v)
 
-                        ok2 = verify_checksum(fallback_expected, values, line_text=linea)
-                        if not ok2:
-                            # Report fallback verification failure as an error
+                        ok2 = verify_checksum(fallback_expected, values, line_text=linea) # Verificar con valores parseados
+                        if not ok2: 
+                            # Reportar error de verificación
                             print(f"[ERR] Dropping line (checksum mismatch after parsed-values attempt): expected=0x{fallback_expected:02X}, values={values}")
                             continue
                         else:
@@ -713,16 +677,16 @@ def IniciarComunicacion2():
                 if humedad is not None:
                     humedades.append(humedad)
 
-                # Print a single clean summary line if requested
+                # Muestra línea limpia de resumen si está activado
                 try:
                     if CLEAN_OUTPUT:
-                        # Only print when we have relevant data to show (avoid flooding with empty lines)
+                        # Solo mostrar si hay datos nuevos o posición actualizada
                         chk_det = checksum_detected if 'checksum_detected' in locals() else None
                         chk_ok = checksum_ok if 'checksum_ok' in locals() else None
                         if (temperatura is not None) or (humedad is not None) or (dist is not None) or pos_updated or (chk_det is True):
                             print_clean_line(temperatura, humedad, dist, ang, last_posx, last_posy, last_posz, checksum_detected=chk_det, checksum_ok=chk_ok)
                 except Exception as e:
-                    # Always show errors
+                     # Mostrar errores
                     print(f"[ERR] {e}")
 
 
@@ -740,7 +704,7 @@ def IniciarComunicacion2():
                         posiciony_vals.append(last_posy)
                         orbit_trail_3d.append((last_posx, last_posy, z_val))
 
-                        # reset update flags until new updates arrive
+                        # Reinicializar flags de actualización
                         last_posx_updated = False
                         last_posy_updated = False
                         last_posz_updated = False
@@ -771,15 +735,14 @@ def IniciarComunicacion2():
                 if temperatura is not None:
                     if modo_Media_temperatura == 0:
                         
-                        # Keep last N values and compute the median from available samples so
-                        # the median updates progressively from the first sample.
+                        # modo_Media_temperatura == 0: calcular media móvil de últimas N muestras
                         buffer_temp.append(temperatura)
                         try:
                             median_val = float(np.median(list(buffer_temp)))
                         except Exception:
                             median_val = float(buffer_temp[-1]) if len(buffer_temp) > 0 else np.nan
 
-                        # Scale the displayed median linearly from 0 to full median over N samples
+                        # Escalar la media según el número de muestras disponibles (rampa)
                         ramp_factor = min(len(buffer_temp), N) / float(N)
                         Temperatura_media = median_val * ramp_factor
                         if DEBUG_TRAIL:
@@ -788,15 +751,15 @@ def IniciarComunicacion2():
                         # Guardar para la gráfica
                         temperaturas_medias.append(Temperatura_media)
                     else:
-                        # modo_Media_temperatura == 1: use value received via 'MED' prefix if available
+                        # modo_Media_temperatura == 1: usar valor recibido directamente
                         temperaturas_medias.append(Temperatura_media if Temperatura_media is not None else np.nan)
-                actualizar_grafica(j)
-                actualiza(posicionx, posiciony, posicionz)
+                actualizar_grafica(j) # Actualizar gráfica izquierda y derecha
+                actualiza(posicionx, posiciony, posicionz) # Actualizar datos de órbita 3D
                 actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
                 print(f"[ERR] {e}")
         if not running and time.time()%3000 == 1:
-            try:
+            try: #Añadir valores nulos cada cierto tiempo cuando está parado
                 eje_x.append()
                 temperaturas.append(np.nan)
                 humedades.append(np.nan)    
@@ -805,20 +768,10 @@ def IniciarComunicacion2():
                 actualiza_grafica_3d() # Actualizar el gráfico 3D
             except Exception as e:
                     print(f"[ERR] {e}")
-# Toggle left graph
-def cambiar_modo_izquierda():
-    global Grafica_izquierda
-    if Grafica_izquierda == "Temperatura":
-        Grafica_izquierda = "Humedad"
-        cambiarButtonizquierda.config(text="Mostrar Temperatura")
-    else:
-        Grafica_izquierda = "Temperatura"
-        cambiarButtonizquierda.config(text="Mostrar Humedad")
-    actualizar_grafica(i)
 
-LANGUAGES = ["Castellano", "Catala", "English", "中文", "Français", "Deutsch"]
+LANGUAGES = ["Castellano", "Catala", "English", "中文", "Français", "Deutsch"] # Idiomas disponibles
 
-TRANSLATIONS = {
+TRANSLATIONS = { # Diccionarios de traducción para cada idioma, libreria
     "Castellano": {
         "title": "Monitor Serial",
         "real_time_graph": "Gráfica en tiempo real",
@@ -1032,11 +985,10 @@ TRANSLATIONS = {
     }
 }
 
-def update_texts():
-    """Apply translations for current Idioma to all UI widgets (call after UI created)."""
+def update_texts(): # Actualiza los textos de todos los elementos de la interfaz según el idioma actual
     t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
     try:
-        # update window title too
+        # Actualizar ventana título
         try:
             window.title(t.get("title", t["title"]))
         except Exception:
@@ -1054,27 +1006,27 @@ def update_texts():
         frame_info.config(text=t["info_title"])
         lbl_info.config(text=t["info_text"])
 
-        # left toggle button text depends on current graph mode
+        # Boton de la grafica izquierda depende del modo actual
         if Grafica_izquierda == "Temperatura":
             cambiarButtonizquierda.config(text=t["show_humidity"])
         else:
             cambiarButtonizquierda.config(text=t["show_temperature"])
-        # right toggle button text depends on current graph mode
+        # Boton de la grafica derecha depende del modo actual
         if Grafica_derecha == "Distancia":
             cambiarButtonderecha.config(text=t["show_position"])
         else:
             cambiarButtonderecha.config(text=t["show_distance"])
-        # automatic mode button 
+        # Boton automatico depende del modo actual
         if Automatico == "Activado":
             AutomaticButton.config(text=t["automatic_off"])
         else:
             AutomaticButton.config(text=t["automatic_on"])
-        # media mode button text
+        # Noton de media temperatura depende del modo actual
         if modo_Media_temperatura == 0:
             cambiarmediaButton.config(text=t["media_sat"])
         else:
             cambiarmediaButton.config(text=t["media_earth"])
-        # placeholder handling: replace if empty OR if it currently equals any known placeholder
+        # Reemplazar placeholder del Textbox
         cur = Texto.get()
         ph = t.get("placeholder", "")
         try:
@@ -1085,9 +1037,9 @@ def update_texts():
             Texto.delete(0, "end")
             Texto.insert(0, ph)
             Texto.config(fg="grey", font=("Microsoft YaHei", 12))
-        # polar title
+        # Titulo Radar
         polar_ax.set_title(t["polar_title"], va="bottom")
-        # update left axis labels and title according to current mode
+        # Actualizar gráfica izquierda labels
         if Grafica_izquierda == "Temperatura":
             ax.set_title(t["temp_plot_title"])
             ax.set_ylabel(t["temp_ylabel"])
@@ -1095,7 +1047,7 @@ def update_texts():
             ax.set_title(t["hum_plot_title"])
             ax.set_ylabel(t["hum_ylabel"])
         ax.set_xlabel(t["samples_xlabel"])
-        # update polar/cart legend labels
+        # Actualizar gráfica derecha labels
         try:
             punt_polar.set_label(t["current_point"])
             polar_ax.legend()
@@ -1115,7 +1067,7 @@ def update_texts():
             ax_3d.set_zlabel(t["z_label"])
         except Exception:
             pass
-        # set IdiomaButton label to show next language in cycle
+        # Mostrar idioma siguiente en el botón
         idx = LANGUAGES.index(Idioma) if Idioma in LANGUAGES else 0
         next_lang = LANGUAGES[(idx + 1) % len(LANGUAGES)]
         IdiomaButton.config(text=next_lang)
@@ -1123,10 +1075,10 @@ def update_texts():
         canvas.draw_idle()
         canvas_3d.draw_idle()
     except Exception:
-        # if called before widgets exist, ignore silently
+        # Si se produce un error, no hacer nada
         pass
     
-def idiomafuncion():
+def idiomafuncion(): # Cambia el idioma al siguiente en la lista
     """Cycle Idioma and update UI texts."""
     global Idioma
     try:
@@ -1137,23 +1089,53 @@ def idiomafuncion():
     registrar_evento("comando", f"Cambiar idioma a {Idioma}")
     update_texts()
 
-# Toggle right graph (distance <-> position)
-def cambiar_modo_derecha():
+def cambiar_modo_derecha(): # Cambia entre mostrar distancia y posición en la gráfica derecha
     global Grafica_derecha
-    if Grafica_derecha == "Distancia":
+    if Grafica_derecha == "Distancia": # Cambiar a posición
         Grafica_derecha = "Posicion"
         cambiarButtonderecha.config(text="Mostrar Distancia")
-    else:
+    else: # Cambiar a distancia 
         Grafica_derecha = "Distancia"
         cambiarButtonderecha.config(text="Mostrar Posicion")
     # show/hide axes accordingly
     polar_ax.set_visible(Grafica_derecha == "Distancia")
     cart_ax.set_visible(Grafica_derecha == "Posicion")
     canvas_polar.draw_idle()
-
-def cambiar_modomedia():
+    
+def cambiar_modo_izquierda(): # Cambia entre mostrar temperatura y humedad en la gráfica izquierda
+    global Grafica_izquierda
+    if Grafica_izquierda == "Temperatura": # Cambiar a humedad
+        Grafica_izquierda = "Humedad"
+        cambiarButtonizquierda.config(text="Mostrar Temperatura")
+    else: # Cambiar a temperatura
+        Grafica_izquierda = "Temperatura"
+        cambiarButtonizquierda.config(text="Mostrar Humedad")
+    actualizar_grafica(i) # Actualiza la gráfica izquierda
+    
+def automatic(): # Cambia entre modo automático y manual el satelite
+    global Automatico
+    if Automatico == "Activado": # Cambiar a modo manual
+        Automatico = "Desactivado"
+        if mySerial:
+            try:
+                mySerial.write(b'AUT:0')
+                registrar_evento("comando", "Modo automático desactivado")
+                AutomaticButton.config(text="Automatico")
+            except Exception as e:
+                print("Serial write error:", e)
+    else: # Cambiar a modo automático
+        Automatico = "Activado"
+        if mySerial:
+            try:
+                mySerial.write(b'AUT:1')
+                registrar_evento("comando", "Modo automático activado")
+                AutomaticButton.config(text="Manual")
+            except Exception as e:
+                print("Serial write error:", e)
+                
+def cambiar_modomedia(): # Cambia entre modo de cálculo de media de temperatura en tierra o en satélite
     global modo_Media_temperatura
-    if modo_Media_temperatura == 0:
+    if modo_Media_temperatura == 0: # Cambiar a modo en tierra
         modo_Media_temperatura = 1
         cambiarmediaButton.config(text="Media Tierra")
         if mySerial:
@@ -1162,8 +1144,8 @@ def cambiar_modomedia():
                 registrar_evento("comando", "Cambiar modo media temperatura: calculada en satélite")
             except Exception as e:
                 print("Serial write error:", e)
-    else:
-        modo_Media_temperatura = 0
+    else: # Cambiar a modo en satélite
+        modo_Media_temperatura = 0 
         cambiarmediaButton.config(text="Media Sat")
         if mySerial:
             try:
@@ -1172,21 +1154,20 @@ def cambiar_modomedia():
             except Exception as e:
                 print("Serial write error:", e)
 
-# --- Update left plot ---
+# --- Aztualizar gráfica izquierda (temperatura o humedad) ---
 def actualizar_grafica(x):
-    """Update left time-series plot using translations for titles/labels."""
     t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
     ax.clear()
-    if Grafica_izquierda == "Temperatura":
-        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 50))
-        n = min(len(eje_x), len(temperaturas))
+    if Grafica_izquierda == "Temperatura": # Modo temperatura
+        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 50)) # Ajustar límites
+        n = min(len(eje_x), len(temperaturas)) # Evitar error si hay menos datos que muestras
         ax.plot(eje_x[:n], temperaturas[:n], label=t["temp_ylabel"])
-        n2 = min(len(eje_x), len(temperaturas_medias))
+        n2 = min(len(eje_x), len(temperaturas_medias)) # Evitar error si hay menos datos que muestras
         ax.plot(eje_x[:n2], temperaturas_medias[:n2], label="Media temperaturas")
         ax.set_ylabel(t["temp_ylabel"])
         ax.set_title(t["temp_plot_title"])
-    else:
-        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 100))
+    else: # Modo humedad
+        ax.set(xlim=(max(0, x-50), x+5), ylim=(0, 100)) # Ajustar límites
         ax.plot(eje_x, humedades, label=t["hum_ylabel"])
         ax.set_ylabel(t["hum_ylabel"])
         ax.set_title(t["hum_plot_title"])
@@ -1194,15 +1175,15 @@ def actualizar_grafica(x):
     ax.legend()
     canvas.draw_idle()
 
-# --- Update right plot (polar or cartesian) ---
+# --- Actualizar gráfica derecha (distancia o posición) ---
 def actualiza(posx, posy, posz):
-    # Distance mode (polar)
+    # Modo distancia: actualizar gráfica polar
     if Grafica_derecha == "Distancia":
         # update polar line and point
         angles_rad = np.radians(np.arange(0, 181))
         linea_polar.set_data(angles_rad, distancies)
 
-        # update current point if punt defined
+        # Actualizar punto actual si no esta definido
         try:
             if 'punt' in globals() and punt is not None:
                 r = min(punt[1][0], polar_ax_rmax)
@@ -1212,25 +1193,19 @@ def actualiza(posx, posy, posz):
         except Exception:
             punt_polar.set_data([], [])
     else:
-        # Position mode: update orbit plot
+        # Modo posición: actualizar gráfica cartesiana
         if len(posicionx_vals) > 0:
-            # update orbit line and last point
+            # Actualizar línea y punto
             orbit_plot.set_data(posicionx_vals, posiciony_vals)
-            # scatter last point
             last_point_plot.set_offsets([[posicionx_vals[-1], posiciony_vals[-1]]])
-
-            # remove only temporary Earth-slice patches (do not clear all patches)
-            # use remove() to safely delete patches from the axis
             try:
-                # iterate over a copy to avoid modifying the list while iterating
                 for p in list(cart_ax.patches):
                     if getattr(p, "_temp_slice", False):
                         p.remove()
             except Exception:
                 pass
 
-
-            # expand limits if needed
+            # Se expande el límite si es necesario
             curx = posicionx_vals[-1]
             cury = posiciony_vals[-1]
             xlim = cart_ax.get_xlim()
@@ -1242,33 +1217,33 @@ def actualiza(posx, posy, posz):
                 cart_ax.set_ylim(-new_ylim, new_ylim)
     canvas_polar.draw_idle()
 
-# --- Update 3D Orbit Plot (Matplotlib) ---
+# --- Actualizar gráfica 3D ---
 def actualiza_grafica_3d():
     """Actualiza y muestra el gráfico 3D de Matplotlib con el rastro de la órbita y la esfera de la Tierra."""
     t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
     ax_3d.clear()
     
-    # 0. Dibuixar l'Esfera de la Terra
-    # Generar la malla de punts per a l'esfera de radi R_EARTH
+    # 0. Dibujar la esfera de la Tierra
+    # Genera mallas de puntos para la esfera
     u_sphere = np.linspace(0, 2 * np.pi, 20)
     v_sphere = np.linspace(0, np.pi, 20)
     x_earth_sphere = R_EARTH * np.outer(np.cos(u_sphere), np.sin(v_sphere))
     y_earth_sphere = R_EARTH * np.outer(np.sin(u_sphere), np.sin(v_sphere))
     z_earth_sphere = R_EARTH * np.outer(np.ones(np.size(u_sphere)), np.cos(v_sphere))
     
-    # Dibuixar l'esfera
+    # Dibuija la esfera
     ax_3d.plot_surface(x_earth_sphere, y_earth_sphere, z_earth_sphere, 
                        color='blue', alpha=0.3, edgecolor='none', label='Earth')
     
     ax_3d.set_box_aspect([1, 1, 1])
     
     if not orbit_trail_3d:
-        # Configuració inicial d'eixos si no hi ha dades
+        # Configuracion inicial si no hay datos
         lim = ORBIT_RADIUS * 1.2
         ax_3d.set_xlim([-lim, lim])
         ax_3d.set_ylim([-lim, lim])
         ax_3d.set_zlim([-lim, lim])
-        ax_3d.set_xlabel(t["x_label"])
+        ax_3d.set_xlabel(t["x_label"]) # Etiqueta ejes
         ax_3d.set_ylabel(t["y_label"])
         ax_3d.set_zlabel(t["z_label"])
         ax_3d.set_title(t["3d_title"])
@@ -1278,17 +1253,17 @@ def actualiza_grafica_3d():
     # Extraer coordenadas del rastro
     x_orbit, y_orbit, z_orbit = zip(*orbit_trail_3d)
     
-    # 1. Traçat de l'Òrbita (La Línia)
+    # 1. Trazo del Rastro de la Órbita
     ax_3d.plot(x_orbit, y_orbit, z_orbit, color='yellow', linewidth=3, label=t["orbit_label"])
     
-    # 2. Posició Actual del Satèl·lit (El Punt)
+    # 2. Posición Actual del Satélite (El Punto)
     ax_3d.scatter([x_orbit[-1]], [y_orbit[-1]], [z_orbit[-1]], 
                   color='red', marker='o', s=50, label=t["last_point_label"], zorder=10)
 
-    # Configuració del Layout
+    # 3. Configuraciones Adicionales
     ax_3d.set_title(t["3d_title"])
     
-    # Establir límits dels eixos
+    # Establecer límites de los ejes
     lim = ORBIT_RADIUS * 1.2
     ax_3d.set_xlim([-lim, lim])
     ax_3d.set_ylim([-lim, lim])
@@ -1300,9 +1275,9 @@ def actualiza_grafica_3d():
     
     canvas_3d.draw_idle()
 
-def cerrar_programa():
+def cerrar_programa(): # Cierra el programa de forma segura
     global running, ventana_abierta
-    if messagebox.askyesno("Salir", "¿Deseas cerrar el programa?"):
+    if messagebox.askyesno("Salir", "¿Deseas cerrar el programa?"): # Confirmar cierre
         ventana_abierta = False
         running = False
         try:
@@ -1317,19 +1292,17 @@ def cerrar_programa():
 
 # --- TKINTER UI SETUP ---
 
-# Create window first, then set a safe default font that supports CJK
-window = Tk()
-# Safely configure the Tk default font (avoids option_add string parsing issues)
-try:
+
+window = Tk()# Crea la ventana principal de Tkinter
+try: # intentar configurar una fuente que soporte caracteres chinos
     default_font = tkfont.nametofont("TkDefaultFont")
     default_font.configure(family="Microsoft YaHei", size=11)
-except Exception:
+except Exception: # en caso de fallo, intentar con otra fuente común
     try:
-        # fallback to a common CJK font if available
         default_font = tkfont.nametofont("TkDefaultFont")
         default_font.configure(family="SimHei", size=11)
     except Exception:
-        # leave defaults if no suitable font available
+        # Mantener la fuente por defecto si no se puede cambiar
         pass
 
 window.title("Monitor Serial - Temperatura y Humedad")
@@ -1349,7 +1322,6 @@ window.rowconfigure(3, weight=1)  # Gráfica 3D e instrucciones (expandible)
 window.columnconfigure(0, weight=1)  # Mitad izquierda (botones + gráfica temp)
 window.columnconfigure(1, weight=1)  # Mitad derecha (gráfica radar + botones)
 
-
 tituloLabel = Label(window, text="Monitor Serial", font=("Times New Roman", 22, "italic"), bg='pink')
 tituloLabel.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
 
@@ -1363,7 +1335,7 @@ frame_izquierda.rowconfigure(0, weight=1)
 frame_botones = Frame(frame_izquierda, bg="lightpink", bd=2)
 frame_botones.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
-frame_grafica = LabelFrame(frame_izquierda, bg="white", bd=2, font=("Arial", 11))
+frame_grafica = LabelFrame(frame_izquierda, bg="white", bd=2, text="Gráfica en tiempo real", font=("Arial", 11))
 frame_grafica.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
 frame_grafica.rowconfigure(0, weight=1)
 frame_grafica.columnconfigure(0, weight=1)
@@ -1375,7 +1347,7 @@ frame_derecha.columnconfigure(0, weight=1)
 frame_derecha.columnconfigure(1, weight=0, minsize=160)
 frame_derecha.rowconfigure(0, weight=1)
 
-frame_grafica_polar = LabelFrame(frame_derecha, bg="white", bd=2, font=("Arial", 11))
+frame_grafica_polar = LabelFrame(frame_derecha, bg="white", bd=2, text="Gráfica de Radar", font=("Arial", 11))
 frame_grafica_polar.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 frame_grafica_polar.rowconfigure(0, weight=1)
 frame_grafica_polar.columnconfigure(0, weight=1)
@@ -1384,18 +1356,18 @@ frame_botones_dos = Frame(frame_derecha, bg="lightpink", bd=2)
 frame_botones_dos.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
 # Input box with placeholder
 input_user = StringVar()
-def set_placeholder(event=None):
+def set_placeholder(event=None): # Establece el texto del placeholder si el Entry está vacío
     try:
         t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
         placeholder_text = t.get("placeholder", "Escribe aquí:")
     except Exception:
-        # TRANSLATIONS may not be defined yet; use a safe default
+        # Traducción quizas no disponible aún
         placeholder_text = "Escribe aquí:"
     if Texto.get() == "":
         Texto.insert(0, placeholder_text)
         Texto.config(fg="grey")
 
-def clear_placeholder(event=None):
+def clear_placeholder(event=None): # Limpia el texto del placeholder si está escribiendo
     try:
         t = TRANSLATIONS.get(Idioma, TRANSLATIONS["Castellano"])
         placeholder_text = t.get("placeholder", "Escribe aquí:", ("Arial, 9"))
@@ -1405,7 +1377,7 @@ def clear_placeholder(event=None):
         Texto.delete(0, "end")
         Texto.config(fg="black")
 
-# Use a font that displays Chinese; explicit font here ensures the Entry shows Chinese properly
+# Input box frame
 row2frame = Frame(window, bg="lightpink")
 row2frame.grid(row=2, column=0, columnspan=2, pady=10, sticky="ew")
 row2frame.columnconfigure(0, weight=0, minsize=160)
@@ -1417,92 +1389,85 @@ Texto.grid(row=0, column=1, padx=10, pady=5, sticky="ew", ipady=8)
 Texto.bind("<Return>", Enter_pressed)
 Texto.bind("<FocusIn>", clear_placeholder)
 Texto.bind("<FocusOut>", set_placeholder)
-# Do not call set_placeholder here unconditionally; update_texts will set the correct localized placeholder once TRANSLATIONS is available
 
-# Buttons
-boton_style = {"font": ("Arial", 11), "width": 15, "height": 1}
+# Botones
+boton_style = {"font": ("Arial", 11), "width": 15, "height": 1} # Estilo común para los botones
+#--- Botones izquierdos ---
 IniciarButton = Button(frame_botones, text="Iniciar", bg='thistle', fg="black", command=IniciarComunicacion, **boton_style)
 PararButton = Button(frame_botones, text="Parar", bg='lightblue', fg="black", command=Parar, **boton_style)
 ReanudarButton = Button(frame_botones, text="Reanudar", bg='lightyellow', fg="black", command=Reanudar, **boton_style)
 cambiarButtonizquierda = Button(frame_botones, text="Mostrar Humedad", bg='lightgreen', fg="black", command=cambiar_modo_izquierda, **boton_style)
 cambiarmediaButton = Button(frame_botones, text="Media Sat", bg='lightyellow', fg="black", command=cambiar_modomedia, **boton_style)
 
-IniciarButton.grid(row=0, column=0, padx=5, pady=5)
+IniciarButton.grid(row=0, column=0, padx=5, pady=5) #--- Posicionamiento de botones ---
 PararButton.grid(row=1, column=0, padx=5, pady=5)
 ReanudarButton.grid(row=2, column=0, padx=5, pady=5)
 cambiarButtonizquierda.grid(row=3, column=0, padx=5, pady=5)
 cambiarmediaButton.grid(row=4, column=0, padx=5, pady=5)
 
+#--- Botones derechos ---
 PararButtonPolar = Button(frame_botones_dos, text ="Parar",bg ='lightblue',fg ="black",command =PararDist, **boton_style)
 ReanudarButtonPolar = Button(frame_botones_dos, text="Reanudar", bg='lightyellow', fg="black", command=ReanudarDist, **boton_style)
 cambiarButtonderecha = Button(frame_botones_dos, text="Mostrar Posicion", bg='lightgreen', fg="black", command=cambiar_modo_derecha, **boton_style)
-# Replace IdiomaButton creation with a proper command and initial label showing the next language
 next_idx = (LANGUAGES.index(Idioma) + 1) % len(LANGUAGES) if Idioma in LANGUAGES else 0
 IdiomaButton = Button(frame_botones_dos, text=LANGUAGES[next_idx], bg='lightblue', fg='black', command=idiomafuncion, **boton_style)
 AutomaticButton = Button(frame_botones_dos, text="Manual", bg='lightblue', fg='black', command=automatic, **boton_style)
+VerEventosButton = Button(frame_botones, text="Ver eventos", bg='lavender', fg="black",command=abrir_ventana_eventos, **boton_style)
 
-VerEventosButton = Button(frame_botones, text="Ver eventos", bg='lavender', fg="black",
- command=abrir_ventana_eventos, **boton_style)
-VerEventosButton.grid(row=5, column=0, padx=5, pady=5)
-
-PararButtonPolar.grid(row=0, column=0, padx=5, pady=5)
+PararButtonPolar.grid(row=0, column=0, padx=5, pady=5) #--- Posicionamiento de botones ---
 ReanudarButtonPolar.grid(row=1, column=0, padx=5, pady=5)
 cambiarButtonderecha.grid(row=2, column=0, padx=5, pady=5)
 IdiomaButton.grid(row=3, column=0, padx=5, pady=5)
 AutomaticButton.grid(row=4, column=0, padx=5, pady=5)
-PararButtonPolar.grid(row=1, column=0, padx=5, pady=5)
-ReanudarButtonPolar.grid(row=2, column=0, padx=5, pady=5)
-cambiarButtonderecha.grid(row=3, column=0, padx=5, pady=5)
-IdiomaButton.grid(row=4, column=0, padx=5, pady=5)
-AutomaticButton.grid(row=5, column=0, padx=5, pady=5)
+VerEventosButton.grid(row=5, column=0, padx=5, pady=5)
 
-
+# --- Grafica izquierda (temperatura o humedad) ---
 fig = matplotlib.figure.Figure(figsize=(5, 3), tight_layout=True)
 ax = fig.add_subplot(111)
 canvas = FigureCanvasTkAgg(fig, master=frame_grafica)
 canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
-# --- Right graph (polar or position) ---
+# --- Grafica derecha (polar o posición ) ---
 
 fig_polar = matplotlib.figure.Figure(figsize=(5, 3), tight_layout=True)
-# create two axes: one polar and one cartesian; toggle visibility
+# Crear ambos ejes: polar y cartesiano
 polar_ax = fig_polar.add_subplot(1,1,1, polar=True)
-cart_ax = fig_polar.add_subplot(1,1,1, polar=False, frame_on=True)  # will overlap; we will toggle visibility# configure polar axis
-polar_ax.set_theta_zero_location("E")
+cart_ax = fig_polar.add_subplot(1,1,1, polar=False, frame_on=True)  
+polar_ax.set_theta_zero_location("E") # 0 grados en el este
 polar_ax.set_theta_direction(1)
-polar_ax.set_thetalim(0, np.pi)
-polar_ax_rmax = 50
+polar_ax.set_thetalim(0, np.pi) # Limitar ángulo de 0 a 180 grados
+polar_ax_rmax = 50 # Máxima distancia del radar
 polar_ax.set_rmax(polar_ax_rmax)
-polar_ax.set_rticks([10,20,30,40,50])
+polar_ax.set_rticks([10,20,30,40,50]) # Etiquetas radiales
 polar_ax.set_rlabel_position(180)
 polar_ax.set_title("Radar de Ultrasonidos", va='bottom')
 
-# configure cartesian axis (for satellite position)
+# Configurar ejes cartesianos
 cart_ax.set_xlabel("X (meters)")
 cart_ax.set_ylabel("Y (meters)")
 cart_ax.set_title("Satellite Equatorial Orbit (View)")
 
-# Set sensible initial limits for cartesian axis so Earth circle doesn't dominate
+# Establecer límites iniciales para el eje cartesiano
 lim = R_EARTH * 1.2
 cart_ax.set_xlim(-lim, lim)
 cart_ax.set_ylim(-lim, lim)
 cart_ax.set_aspect('equal', 'box')
 
-# initial artists (polar mode)
+# Artists iniciales (modo polar)
 linea_polar, = polar_ax.plot(np.radians(np.arange(0,181)), distancies, lw=2)
 punt_polar, = polar_ax.plot([], [], "go", markersize=8, label="haz actual")
 beam_polar, = polar_ax.plot([], [], lw=3, color='red', label="Distancia")
 polar_ax.legend(loc='upper right')
 
-# initial artists (cartesian mode)
+# Artists iniciales (modo cartesiano)
 orbit_plot, = cart_ax.plot([], [], 'bo-', markersize=2, label='Satellite Orbit')
 last_point_plot = cart_ax.scatter([], [], color='red', s=30, label='Last Point')
 
-# Add Earth surface as a patch on the correct axis (cart_ax) using patches (not plt.Circle)
+# Añadir la superficie de la Tierra como un parche en el eje correcto (cart_ax) usando parches (no plt.Circle)
 earth_circle = mpatches.Circle((0, 0), R_EARTH, fill=False, edgecolor='orange', linewidth=1.5, zorder=0)
 cart_ax.add_patch(earth_circle)
 
-# Start with polar visible and cart hidden
+# Empezar en modo polar
 polar_ax.set_visible(True)
 cart_ax.set_visible(False)
 
@@ -1510,7 +1475,7 @@ canvas_polar = FigureCanvasTkAgg(fig_polar, master=frame_grafica_polar)
 canvas_polar.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 canvas_polar.draw()  # Dibujar el canvas inicialmente
 
-# --- Bottom Graph (3D Orbit) ---
+# --- Grafica 3D ---
 frame_grafica_3d = LabelFrame(window, bg="white", bd=2, text="Gráfica de Órbita 3D", font=("Arial", 11))
 # Ubicación: Fila 3, columna 0 (ocupa 3/4 del ancho)
 frame_grafica_3d.grid(row=3, column=0, padx=10, pady=10, sticky="nsew")
@@ -1519,7 +1484,6 @@ frame_grafica_3d.columnconfigure(0, weight=1)
 
 # Crear Figura y Eje 3D
 fig_3d = matplotlib.figure.Figure(figsize=(10, 5), tight_layout=True)
-# Importante: usar projection='3d'
 ax_3d = fig_3d.add_subplot(111, projection='3d') 
 
 canvas_3d = FigureCanvasTkAgg(fig_3d, master=frame_grafica_3d)
@@ -1531,13 +1495,12 @@ frame_info.rowconfigure(0, weight=1)
 frame_info.columnconfigure(0, weight=1)
 
 text_informatiu = "En la caja blanca de debajo de todo, puedes introducir:\n\n • El período en el que se envían los datos de temperatura y distancia.\n\n • El ángulo que quieres que gire el satélite.\n\n • Una temperatura máxima (la alarma azul sonará si se supera 3 veces). \n\n • Un comentario que aparece en el registro de eventos \n\n Según el dato que introduzcas, deberás escribir antes los respectivos comandos seguidos por un espacio: \n periodo temperatura, periodo distancia, angulo, maximo temperatura, comentario "
-lbl_info = Label(frame_info, text=text_informatiu, bg="light pink", font=("Arial", 8), justify="left", anchor="nw", wraplength=320)
+lbl_info = Label(frame_info, text=text_informatiu, bg="light pink", font=("Arial", 8), justify="center", anchor="nw", wraplength=320)
 lbl_info.pack(padx=15, pady=15, fill="both", expand=True)
 
 # Llamada inicial para establecer los límites del eje 3D
 actualiza_grafica_3d()
 update_texts()
-
 
 # protocol
 window.protocol("WM_DELETE_WINDOW", cerrar_programa)
