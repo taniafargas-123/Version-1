@@ -1,125 +1,127 @@
 #include <SoftwareSerial.h>
 #define aAmarilla 2
-#define aRoja 6
 #define aVerde 4
+#define aRoja 6
+#define aAzul 8
+#define aBlanca 12
+
+
+//LoRa
 SoftwareSerial mySerial(10, 11); // RX, TX 
 
-float temp = 0; //Todas la variables que se envian de satelite a tierra
-float hum = 0;
+// DATOS DEL DHT
+float temperatura = 0;
+float humedad = 0;
 float dist = 0;
-float angulo = 90;
-float m = 0;
-float x = 0;
-float y = 0;
-float z = 0;
+int mediaTemperatura;
 
-bool aDHT = 0;      // Variables de alarmas
-bool aCerca = 0; 
-bool aTiempo = 0;
+// POSICION 3D
+float posicionX = 0;
+float posicionY = 0;
+float posicionZ = 0;
 
-int nextFalloTiempo; //Esperar para las alarmas
-int intervalFalloTiempo = 5000;
+// ESTADO DE LAS ALARMAS
+bool aTiempo = 0; // AMARILLA: falla la lectura LoRa durante mass de 5 segundos 
+bool aCerca = 0;  // VERDE: El sensor de ultrasonicos detecta una distancia menor a 10 cm
+bool aDHT = 0; // ROJA: Falla la lectura DHT durante mas de 5 segundos
+bool aMedia = 0; // AZUL: Se reciben tres valoresde media de temperatura seguidos por encima de un valor maximo
+bool aUltra = 0; // BLANCA: Si la recepcion de datos del sensor de ultrasonidos falla (funcion leerdistancia da return -1)
+int TemperaturaMaxima = 15; //30ºC
+int mediasSuperiores = 0; // medias de temperatura superiores a la temperatura maxima 
+int media;
+int contador = 0;
+
+// INTERVALOS
+int nextFalloTiempo = 0;
+int intervalFalloTiempo = 5000; // Tiempo a espera para que se cumpla la condicion de la alarma de tiempo
 
 
-
+// =====================================================================================================================
+//                                                       SETUP
+// =====================================================================================================================
 void setup() {
-  Serial.begin(9600);
-  mySerial.begin(9600);
+  Serial.begin(9600); //Canal con python 
+  mySerial.begin(9600); //Canal LoRa
   pinMode(aAmarilla, OUTPUT);
   pinMode(aRoja, OUTPUT);
   pinMode(aVerde, OUTPUT);
+  pinMode(aAzul, OUTPUT);
+  pinMode(aBlanca, OUTPUT);
 }
 
-void loop() {
+// =====================================================================================================================
+//                                                       LOOP
+// =====================================================================================================================
+  void loop() {
 
   //--------------------------------------------------
-  // LECTURA SERIAL DEL MÓDULO
+  //   1. Comunicacion Satelite -> Tierra -> Python
   //--------------------------------------------------
   if (mySerial.available()) {
-
-    nextFalloTiempo = millis() + intervalFalloTiempo; // Si hay un fallo espera
-    aTiempo = 0;
-
-    String linea = mySerial.readStringUntil('\n'); // Lee los mensajes que le envian
-    Serial.println(linea);
-
-    char buffer[90];//No se que hace (preguntar a Marc)
-    linea.toCharArray(buffer, 90);
-
-    char *token = strtok(buffer, ":"); //No se que hace (preguntar a Marc)
-
-    while (token != NULL) {
-
-      int id = atoi(token);//No se que hace (preguntar a Marc)
-      token = strtok(NULL, ":");
-      if (token == NULL) break;
-
-      float valor = atof(token);
-
-      switch (id) {
-        case 1: temp = valor; break;//No se que hace (preguntar a Marc)
-        case 2: hum  = valor; break;
-        case 3: dist = valor; break;
-        case 4: angulo = valor; break;
-        case 5: m = valor; break;
-        case 6: x = valor; break;
-        case 7: y = valor; break;
-        case 8: z = valor; break;
-        case 9: aDHT = valor; break;
-        case 10: aCerca = valor; break;
-      }
-      token = strtok(NULL, ":");
+    String input = mySerial.readStringUntil('\n');
+    input.trim();
+    Serial.println(input);
+    if (input.startsWith("MEDI:")) {
+        String mediStr = input.substring(5);
+        media = mediStr.toInt();
     }
+    if (input.startsWith("MED:")) {
+        String mediaStr = input.substring(4); // desde después de "MED:"
+        mediaTemperatura = mediaStr.toInt();
+    }
+    if (input.startsWith("Ar:")){
+        String alarmaroja = input.substring(3);
+        aDHT = alarmaroja.toInt();
+    }
+    if (input.startsWith("Aa:")){
+        String alarmaAzul = input.substring(3);
+        aMedia = alarmaAzul.toInt();
+    }
+    if (input.startsWith("Av:")){
+        String alarmaVerde = input.substring(3);
+        aCerca = alarmaVerde.toInt();
+    }
+    if (input.startsWith("Ab:")){
+        String alarmaBlanca = input.substring(3);
+        aUltra = alarmaBlanca.toInt();
+    }
+    //que no sea  nada if ()){
+    nextFalloTiempo = intervalFalloTiempo + millis(); // Se actualiza el periodo de la alarma
   }
-
   //--------------------------------------------------
-  // TIMEOUT
+  //      2. Condicion de la alarma de tiempo
   //--------------------------------------------------
-  if (millis() > nextFalloTiempo) { //avisa si hay un fallo en un periodo de tiempo
+  //Serial.print("1:"); Serial.println(aTiempo);
+  if(mySerial.available() > 0 && millis()< nextFalloTiempo && aTiempo == 1){
+    aTiempo = 0;
+  } else if (mySerial.available() == 0 && millis() > nextFalloTiempo && aTiempo == 0) {
     aTiempo = 1;
   }
-
-  //--------------------------------------------------
-  // LEDS
-  //--------------------------------------------------
-  digitalWrite(aAmarilla, aTiempo == 0 ? HIGH : LOW);
-  digitalWrite(aRoja,     aDHT == 0    ? HIGH : LOW);
-  digitalWrite(aVerde,    aCerca == 0  ? HIGH : LOW);
-
-
-  //--------------------------------------------------
-  // ENVÍO DE DATOS A PYTHON
-  //--------------------------------------------------
-  if (Serial.available()) {
-    char Pausa = Serial.read();
-    Serial.println(Pausa);
-
-    // comandos normales
-    if (Pausa == '0') mySerial.println("0:"); //comandos que se envian de python 
-    if (Pausa == '1') mySerial.println("1:");
-    if (Pausa == '2') mySerial.println("2:");
-    if (Pausa == '3') mySerial.println("3:");
-
-    // ---- ENVÍO NUEVO ----
-    // Enviar las 8 primeras juntas:
-    String paquete = "";
-    paquete += "1:" + String(temp)  + ":";
-    paquete += "2:" + String(hum)   + ":";
-    paquete += "3:" + String(dist)  + ":";
-    paquete += "4:" + String(angulo)+ ":";
-    paquete += "5:" + String(m)     + ":";
-    paquete += "6:" + String(x)     + ":";
-    paquete += "7:" + String(y)     + ":";
-    paquete += "8:" + String(z);
-
-    mySerial.println(paquete);   // ENVÍO DEL PACK DE 8 VARIABLES
-
-    // Envío separado solo si se cumplen:
-    if (aDHT == 1) {
-      mySerial.println("9:1");
-    }
-    if (aCerca == 1) {
-      mySerial.println("10:1");
-    }
+  if (mySerial.available() > 0){
+    nextFalloTiempo = intervalFalloTiempo + millis();
   }
+  //Serial.print("2:"); Serial.println(aTiempo);
+  //--------------------------------------------------
+  //      3. Condicion de la alarma de media
+  //--------------------------------------------------
+  if (media > TemperaturaMaxima && aMedia == 0){
+    contador = contador + 1;
+      if (contador>=3){
+        aMedia = 1;
+        Serial.print("Aa:1");
+      }
+  } else if (media <= TemperaturaMaxima && aMedia == 1){
+    contador=0;
+    aMedia = 0;
+    Serial.println("Aa:0");
+  }
+
+  //--------------------------------------------------
+  //             4. LEDs de cada alarma
+  //--------------------------------------------------
+  digitalWrite(aAmarilla, aTiempo == 0 ? LOW : HIGH); // si aTiempo es 0, el estado es LOW, y si es 1, estado HIGH
+  digitalWrite(aRoja,     aDHT == 0    ? LOW : HIGH); 
+  digitalWrite(aVerde,    aCerca == 0  ? LOW : HIGH);
+  digitalWrite(aAzul,     aMedia == 0  ? LOW : HIGH);
+  digitalWrite(aBlanca,   aUltra == 0  ? LOW : HIGH);
 }
