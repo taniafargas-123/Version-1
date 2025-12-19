@@ -125,7 +125,6 @@ void setup() {
   digitalWrite(aVerde,    aCerca == 0  ? LOW : HIGH);
   digitalWrite(aAzul,     aMedia == 0  ? LOW : HIGH);
   digitalWrite(aBlanca,   aUltra == 0  ? LOW : HIGH);
-}
 
 //--------------------------------------------------
   //   5. Comunicacion Python -> Tierra -> Satelite
