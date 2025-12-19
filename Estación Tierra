@@ -126,3 +126,17 @@ void setup() {
   digitalWrite(aAzul,     aMedia == 0  ? LOW : HIGH);
   digitalWrite(aBlanca,   aUltra == 0  ? LOW : HIGH);
 }
+
+//--------------------------------------------------
+  //   5. Comunicacion Python -> Tierra -> Satelite
+  //--------------------------------------------------
+  if (Serial.available()) {
+    String Comandos = Serial.readStringUntil('\n');  // leer de Python
+    Comandos.trim();
+        if (Comandos.startsWith("7:")){
+        String alarmaAzul = Comandos.substring(2);
+        aMedia = alarmaAzul.toInt();
+    }
+    mySerial.println(Comandos); // enviar al otro Arduino
+  }
+}
