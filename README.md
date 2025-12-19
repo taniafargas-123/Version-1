@@ -43,7 +43,7 @@ Link del video demostratiu: https://drive.google.com/file/d/1-j9wdUP3bScsias9G_A
 En aquesta etapa final del projecte, ens hem concentrat en la consolidació i refinament de totes les funcionalitats desenvolupades anteriorment, assegurant una operació robusta i fiable del sistema. El nostre satèl·lit ara imita l'estructura d'un CubeSat. També, pensant en l'accessibilitat i l'adopció global, hem implementat la traducció de la interfície de visualització de dades a 6 idiomes diferents, una característica clau que fa que la plataforma d'estació de terra sigui adaptable i fàcilment utilitzable per a operadors i investigadors de tot el món, garantint que les dades i gràfiques siguin plenament comprensibles sense barreres lingüístiques. 
 Finalment, hem volgut presentar el projecte final d’una manera una mica diferent i divertida. Esperem que el gaudiu!
 
-Link del video demostratiu: https://drive.google.com/file/d/1hRvkniphaLGZRZEO9MF9vkkqmuoNQ8-O/view?usp=sharing 
+Link del video demostratiu: https://drive.google.com/file/d/1hRvkniphaLGZRZEO9MF9vkkqmuoNQ8-O/view?usp=drivesdk 
 
 ---
 
